@@ -6,8 +6,9 @@ import numpy as np
 import random
 
 def get_raw_data() -> Tuple[np.ndarray, List]:
-  song_names = [song_dir for song_dir in get_directories()]
-  song_data = np.asarray([get_raw_audio(song_dir) for song_dir in get_directories()])
+  dir = get_directories()
+  song_names = [song_dir for song_dir in dir]
+  song_data = np.array([get_raw_audio(song_dir) for song_dir in dir])
   return (song_data, song_names)
 
 def play_audio(audio_data) -> None:

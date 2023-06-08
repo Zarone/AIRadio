@@ -1,14 +1,4 @@
-from neural_networks.components.encoder import Encoder
+from neural_networks.components.base import BaseNetwork
 
-class VAE:
-
-
-  def __init__(self, layers):
-    """
-    Parameters
-    ----------
-    layers 
-      this defines the number of nodes in each activation layer (including input space and latent space)
-    """
-    encoder = Encoder(layers)
-    #decoder = Decoder[layers.reverse()]
+class VAE(BaseNetwork):
+  pass
