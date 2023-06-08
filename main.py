@@ -9,9 +9,12 @@ from neural_networks.vae.normal_vae.normal_vae import VAE
 
 # print(f"Current Size of Each Song: {len(sounds[0])}")
 
-# TODO
-compression_VAE = VAE([5, 3, 2, 3, 5])
+layers = (5, 3, 1, 3, 5)
+compression_VAE = VAE(layers)
 compression_VAE.train()
-print(compression_VAE.feedforward(np.arange(5).reshape(-1,1)))
+encoded = compression_VAE.encode(np.arange(len(layers)).reshape(-1,1))
+print(f"encoded: {encoded}")
+decoded = compression_VAE.decode(encoded)
+print(f"decoded: {decoded}")
 # compressed_sounds = np.asarray([compression_VAE.encode(sound) for sound in sounds])
 

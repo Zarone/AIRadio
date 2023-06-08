@@ -16,7 +16,7 @@ def play_audio(audio_data) -> None:
   sd.wait()  # Wait until the audio finishes playing
 
 # Pick a random song and play it
-def play_random_sound(sounds: np.array, names: List[str]):
+def play_random_sound(sounds: np.ndarray, names: List[str]):
   choice = random.randint(0, len(names)-1)
   print(f"Playing song: {names[choice]}")
   play_audio(sounds[choice])

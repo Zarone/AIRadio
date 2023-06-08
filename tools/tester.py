@@ -45,7 +45,7 @@ class Tester:
   @staticmethod
   def arr_equal(x: np.ndarray, y: np.ndarray, err: float=0.001):
     for i, _ in enumerate(x):
-      if not Tester.num_equal(x[i], y[i]):
+      if not Tester.eq(x[i], y[i], err):
         return False
     return True
 
