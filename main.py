@@ -12,9 +12,5 @@ from neural_networks.vae.normal_vae.normal_vae import VAE
 layers = (5, 3, 1, 3, 5)
 compression_VAE = VAE(layers)
 compression_VAE.train()
-encoded = compression_VAE.encode(np.arange(len(layers)).reshape(-1,1))
-print(f"encoded: {encoded}")
-decoded = compression_VAE.decode(encoded)
-print(f"decoded: {decoded}")
 # compressed_sounds = np.asarray([compression_VAE.encode(sound) for sound in sounds])
 

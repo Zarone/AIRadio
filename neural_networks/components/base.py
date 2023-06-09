@@ -52,5 +52,7 @@ class BaseNetwork:
     activation_function = self.activation_exceptions.get(i, self.activation)
     return activation_function(z)
 
-  def train(self) -> None:
-    pass
+  def train(self, _training_data: np.ndarray, max_epochs: int, test_data: (np.ndarray|None)=None) -> None:
+    training_data = np.array(_training_data, copy=True)
+    for i in range(max_epochs):
+      pass

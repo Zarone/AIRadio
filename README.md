@@ -22,6 +22,9 @@
   - Use the latent space coordinate as the parameters to the generator function G(P).
   - Use S<sub>0</sub> and G(P) as the two possible inputs to the discriminator.
   - Use the value from the discriminator to train VAE/Generator
+  - Generate a full latent space distribution using the training data
+    - $\mu = \frac{\sum(\mu_i)}{n}$
+    - $\sigma = \sqrt{\sum{\sigma_i^2}}$
 - Train From User Input
   - Add a new neural network layer or two to the generator.
   - Create a large neural network, D(G(P)) = D(S), which takes in a whole song and returns a prediction for the user loss function.
