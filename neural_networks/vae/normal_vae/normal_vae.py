@@ -88,8 +88,6 @@ class VAE(BaseNetwork):
 
     for _ in range(0, len(activations)-1):
       last_activations = input if i==0 else activations[i-1]
-      print(f"last activations: {last_activations}")
-      print(f"weights: {self.weights[0]}")
 
       z_values[i], activations[i] = self.feedforward_layer(i, last_activations)
       i+=1
@@ -103,13 +101,10 @@ class VAE(BaseNetwork):
 
     parameters_count = len(activations[i])//2
 
-    print(f"activations:\n {activations}")
-
     return (activations, z_values, activations[-1][0:parameters_count], activations[-1][parameters_count:parameters_count*2])
 
 
   def decode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-
     activations = np.empty(
       len(self.decoder_layers)-1,
       dtype=np.ndarray
@@ -122,19 +117,12 @@ class VAE(BaseNetwork):
 
     i = 0
 
-    print(self.weights)
-
     for _ in range(0, len(activations)-1):
       last_activations = input if i==0 else activations[i-1]
       
       coef_index = i+len(self.encoder_layers)-1
-      print("coef_index", coef_index)
-      print("last_activations", last_activations)
-      print("weights", self.weights[coef_index])
 
       z_values[i], activations[i] = self.feedforward_layer(coef_index, last_activations)
-      print("z_values[i]")
-      print(z_values[i])
       i+=1
 
     last_activations = input if i==0 else activations[-2]
@@ -146,19 +134,19 @@ class VAE(BaseNetwork):
 
     activations[i] = z_values[i]
 
-    return (z_values, activations[-1])
+    return (z_values, activations)
 
-  def gen(self, mu, log_variance) -> np.ndarray:
+  def gen(self, mu, log_variance) -> Tuple[np.ndarray, np.ndarray]:
       epsilon = np.random.randn(len(mu))
-      print(f"epsilon:\n {epsilon}")
       z = mu + np.exp(0.5 * log_variance) * epsilon
-      return z
+      return (z, epsilon)
 
   def train(self, _training_data: np.ndarray, max_epochs: int, batch_size:int = 100, test_data: (np.ndarray|None)=None) -> None:
     training_data = np.array(_training_data, copy=True)
+    per_epoch = len(training_data) // batch_size
     for _ in range(max_epochs):
       np.random.shuffle(training_data)
-      for j in range(batch_size):
+      for j in range(per_epoch):
         index = j * batch_size
         batch = training_data[index:index+batch_size]
         self.training_step(batch)
@@ -166,4 +154,17 @@ class VAE(BaseNetwork):
         raise NotImplementedError("Testing not implemented")
 
   def training_step(self, batch):
-    pass
+    weight_gradient = np.empty(self.weights.shape, np.ndarray)
+    for i, _ in enumerate(weight_gradient):
+      weight_gradient[i] = np.zeros(self.weights[i].shape)
+
+    for data_point in batch:
+      z1, a1, mu, log_variance = self.encode(data_point)
+      generated, epsilon = self.gen(mu, log_variance)
+      z2, a2 = self.decode(generated)
+      z_values = np.hstack((z1, z2))
+      activations = np.hstack((a1, a2))
+
+      print("Don't forget I put exit at the end")
+      exit()
+
