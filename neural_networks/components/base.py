@@ -26,21 +26,24 @@ class BaseNetwork:
     self.init_coefficients(layers)
 
   def init_coefficients(self, layers: Tuple[int]) -> None:
+    min = -1
+    max = 1
+
     self.layers = layers
     self.biases: np.ndarray = np.empty(len(layers)-1, dtype=np.ndarray)
     self.weights: np.ndarray = np.empty(len(layers)-1, dtype=np.ndarray)
     for i in range(len(layers)-1):
-      self.biases[i] = config.rng.uniform(-1,1,(layers[i+1], 1))
-      self.weights[i] = config.rng.uniform(-1,1,(layers[i+1], layers[i]))
+      self.biases[i] = config.rng.uniform(min,max,(layers[i+1], 1))
+      self.weights[i] = config.rng.uniform(min,max,(layers[i+1], layers[i]))
 
   def feedforward(self, input: np.ndarray) -> np.ndarray:
     activations = np.empty(len(self.layers)-1, dtype=np.ndarray)
     for i, _ in enumerate(activations):
       last_activations = input if i==0 else activations[i-1]
-      activations[i] = self.feedforward_layer(i, last_activations)
+      _, activations[i] = self.feedforward_layer(i, last_activations)
     return activations[-1]
 
-  def feedforward_layer(self, i: int, last_activations: np.ndarray) -> np.ndarray:
+  def feedforward_layer(self, i: int, last_activations: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     # z_{i} = w * a_{i-1} + b
     z = np.matmul(self.weights[i], last_activations) + self.biases[i]
 
@@ -50,9 +53,5 @@ class BaseNetwork:
     # results could not then be returned ever, so self.activation_exceptions
     # would have a value at key=final_layer_index with value=sigmoid
     activation_function = self.activation_exceptions.get(i, self.activation)
-    return activation_function(z)
+    return (z, activation_function(z))
 
-  def train(self, _training_data: np.ndarray, max_epochs: int, test_data: (np.ndarray|None)=None) -> None:
-    training_data = np.array(_training_data, copy=True)
-    for i in range(max_epochs):
-      pass

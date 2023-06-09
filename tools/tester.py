@@ -30,16 +30,16 @@ class Tester:
 
   @staticmethod
   def eq(x, y, err: float=0.001):
-    if isinstance(x, float) or isinstance(x, int):
+    if isinstance(x, (float, int, np.integer)):
       return Tester.num_equal(x,y,err)
     elif isinstance(x, np.ndarray):
       return Tester.arr_equal(x,y,err)
     else:
-      print(f"Unrecognized Type: {type(x)}")
+      raise Exception(f"Unrecognized Type: {type(x)}")
 
 
   @staticmethod
-  def num_equal(x: float, y: float, err: float=0.001):
+  def num_equal(x: float|int|np.integer, y: float|int|np.integer, err: float=0.001):
     return abs(x-y)<err
 
   @staticmethod
