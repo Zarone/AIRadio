@@ -1,7 +1,7 @@
 from neural_networks.components.base import BaseNetwork
 import numpy as np
 import neural_networks.components.config as config
-from neural_networks.components.activations import relu
+from neural_networks.components.activations import relu, relu_derivative
 from typing import Tuple, Callable
 
 class VAE(BaseNetwork):
@@ -11,6 +11,7 @@ class VAE(BaseNetwork):
       encoder_layers: Tuple[int, ...], 
       decoder_layers: Tuple[int, ...], 
       activation=relu, 
+      activation_derivative=relu_derivative, 
       activation_exceptions: dict[int, Callable]={}
   ) -> None:
 
@@ -19,6 +20,7 @@ class VAE(BaseNetwork):
       raise Exception("Initialized VAE with inconsistent latent space size")
 
     self.activation = activation
+    self.activation_derivative = activation_derivative
     self.activation_exceptions = activation_exceptions
     self.init_coefficients(encoder_layers, decoder_layers)
 
@@ -26,6 +28,7 @@ class VAE(BaseNetwork):
   def init_coefficients(self, e_layers: Tuple[int, ...], d_layers: Tuple[int, ...]) -> None:
     self.encoder_layers = e_layers
     self.decoder_layers = d_layers
+    self.latent_size = d_layers[0]
 
     min=-1
     max=1
@@ -154,7 +157,11 @@ class VAE(BaseNetwork):
         raise NotImplementedError("Testing not implemented")
 
   def training_step(self, batch):
+    final_layer_index = len(self.encoder_layers) + len(self.decoder_layers) - 2
+    
+    # This gradient is added to for each data point in the batch
     weight_gradient = np.empty(self.weights.shape, np.ndarray)
+
     for i, _ in enumerate(weight_gradient):
       weight_gradient[i] = np.zeros(self.weights[i].shape)
 
@@ -162,8 +169,41 @@ class VAE(BaseNetwork):
       z1, a1, mu, log_variance = self.encode(data_point)
       generated, epsilon = self.gen(mu, log_variance)
       z2, a2 = self.decode(generated)
+
+      # These are needed for some gradient calculations
       z_values = np.hstack((z1, z2))
       activations = np.hstack((a1, a2))
+      activations[len(self.encoder_layers)-2] = generated
+
+      # Partial Derivative of Loss with respect to the output activations
+      dL_daL = (activations[-1] - data_point) * (2/len(activations[-1]))
+
+      # Loss Gradients with respect to z, for just the decoder
+      decoder_gradients_z = np.empty((len(z_values)), np.ndarray)
+      decoder_gradients_z[-1] = dL_daL * self.activation_derivative(z_values[-1])
+
+      last_index = len(z_values) - 1
+      first_index = len(self.encoder_layers) - 2
+
+      print(last_index, first_index)
+
+      # Backpropagate through Decoder
+      for j in range(last_index, first_index, -1):
+        print("j", j)
+        # print(f"activations: {activations}")
+        # print(f"dL_dz: {decoder_gradients_z}")
+        if j != last_index:
+          decoder_gradients_z[j] = np.matmul(self.weights[j+1].transpose(), decoder_gradients_z[j+1]) * self.activation_derivative(z_values[j])
+        # print(f"dL_dz: {decoder_gradients_z[j]}")
+        # print(f"activations: {activations[j-1].transpose()}")
+        weight_gradient[j] -= decoder_gradients_z[j] * activations[j-1].transpose()
+        print(f"weight gradient: {weight_gradient}")
+
+
+      # ∂L/∂mu = ∂L/∂z_n * ∂z_n/∂a_(n-1) * ∂a_(n-1)/∂mu + ∂L/∂D * ∂D/mu
+      #        = ∂L/∂z_n * w_n           * 1            + 1     * mu/N
+      #        = ∂L/∂z_n * w_n + mu/N
+      # dL_dmu = decoder_gradients_z[] + self.weights[] + mu/self.latent_size
 
       print("Don't forget I put exit at the end")
       exit()
