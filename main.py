@@ -9,8 +9,8 @@ from neural_networks.vae.normal_vae.normal_vae import VAE
 
 # print(f"Current Size of Each Song: {len(sounds[0])}")
 
-encoder_layers = (5, 3, 1)
-decoder_layers = (1, 3, 5)
+encoder_layers = (5, 3, 2)
+decoder_layers = (2, 3, 5)
 
 compression_VAE = VAE(encoder_layers, decoder_layers)
 
