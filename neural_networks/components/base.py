@@ -44,8 +44,20 @@ class BaseNetwork:
     return activations[-1]
 
   def feedforward_layer(self, i: int, last_activations: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    # print(f"layer = {i}")
+    # print("last_activations")
+    # print(last_activations)
+    # print("weights")
+    # print(self.weights[i])
+    # print("biases")
+    # print(self.biases[i])
+
+    # print(f"z[{i}]")
+
     # z_{i} = w * a_{i-1} + b
     z = np.matmul(self.weights[i], last_activations) + self.biases[i]
+
+    # print(z)
 
     # Sometimes, the default activation function, self.activation,
     # will not always be the activation for every layer. For instance,
