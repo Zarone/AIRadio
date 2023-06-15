@@ -5,6 +5,8 @@ from neural_networks.components.activations import relu, relu_derivative
 from typing import Tuple, Callable, Any
 import matplotlib.pyplot as plt
 import math
+from neural_networks.components.optimizer.optimizer import Optimizer
+from neural_networks.components.optimizer.SGD import SGD
 
 class VAE(BaseNetwork):
   
@@ -14,13 +16,15 @@ class VAE(BaseNetwork):
       decoder_layers: Tuple[int, ...], 
       activation=relu, 
       activation_derivative=relu_derivative, 
-      activation_exceptions: dict[int, Callable]={}
+      activation_exceptions: dict[int, Callable]={},
+      optimizer: Optimizer = SGD()
   ) -> None:
 
 
     if (encoder_layers[-1] != decoder_layers[0]): 
       raise Exception("Initialized VAE with inconsistent latent space size")
 
+    self.optimizer = optimizer
     self.activation = activation
     self.activation_derivative = activation_derivative
     self.activation_exceptions = activation_exceptions
@@ -72,7 +76,7 @@ class VAE(BaseNetwork):
       index+=1
 
 
-  def vae_loss(self, y_true, y_pred, mu, log_var):
+  def loss(self, y_true, y_pred, mu, log_var):
     # Reconstruction loss
     reconstruction_loss = np.mean(np.square(y_true - y_pred)[0], axis=-1)
 
@@ -185,6 +189,10 @@ class VAE(BaseNetwork):
 
     max_iterations = per_epoch * max_epochs
 
+    # This is because, with a lot of inputs, we have a harder
+    # time stabilizing gradient.
+    adjusted_learning_rate = learning_rate / len(training_data[0])
+
     if per_epoch == 0:
       raise Exception("Batch Size greater than Data Set")
     for i in range(max_epochs):
@@ -193,7 +201,7 @@ class VAE(BaseNetwork):
         index = j * batch_size
         batch = training_data[index:index+batch_size]
 
-        reconstruction_loss, kl_loss = self.training_step(batch, learning_rate, i*per_epoch+j, max_iter=max_iterations)
+        reconstruction_loss, kl_loss = self.training_step(batch, adjusted_learning_rate, i*per_epoch+j, max_iter=max_iterations)
 
         kl_losses.append(kl_loss)
         reconstruction_losses.append(reconstruction_loss)
@@ -234,7 +242,7 @@ class VAE(BaseNetwork):
 
       # Partial Derivative of Loss with respect to the output activations
       dL_daL = (activations[-1] - data_point) * (2/len(activations[-1]))
-      delta_reconstruction_loss, delta_kl_loss = self.vae_loss(data_point, activations[-1], mu, log_variance)
+      delta_reconstruction_loss, delta_kl_loss = self.loss(data_point, activations[-1], mu, log_variance)
       reconstruction_loss += delta_reconstruction_loss
       kl_loss += delta_kl_loss
 
@@ -300,7 +308,7 @@ class VAE(BaseNetwork):
       weight_gradient[0] += np.matmul(decoder_gradients_z[0], data_point.transpose())
       bias_gradient[0] += decoder_gradients_z[0]
 
-    self.weights -= learning_rate/len(batch)/len(batch[0]) * weight_gradient
-    self.biases -= learning_rate/len(batch)/len(batch[0]) * bias_gradient
+    self.weights -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(weight_gradient)
+    self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(bias_gradient)
     return reconstruction_loss/len(batch), kl_loss/len(batch)
 

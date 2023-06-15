@@ -38,7 +38,7 @@ histogram = False
 
 for i in range(30 if histogram else 1):
   compression_VAE = VAE(encoder_layers, decoder_layers)
-  compression_VAE.train(sounds, 1000, len(sounds), graph=(not histogram), learning_rate=0.05, print_epochs=(not histogram))
+  compression_VAE.train(sounds, 5000, len(sounds), graph=(not histogram), learning_rate=0.05, print_epochs=(not histogram))
 
   if not histogram:
     print(f"test input:\n {sounds[0]*scale}")
@@ -55,7 +55,7 @@ for i in range(30 if histogram else 1):
   if not histogram:
     print(f"off by:\n {10*(decoded[-1]-sounds[0])}")
 
-  loss = compression_VAE.vae_loss(sounds[0], decoded[-1], mu, log_variance)
+  loss = compression_VAE.loss(sounds[0], decoded[-1], mu, log_variance)
   r_loss = loss[0]
 
   if math.isnan(r_loss) or r_loss > 1E4:

@@ -2,6 +2,7 @@ from typing import Tuple, Callable
 import numpy as np
 import neural_networks.components.config as config
 from neural_networks.components.activations import relu
+import math
 
 class BaseNetwork:
 
@@ -26,13 +27,12 @@ class BaseNetwork:
     self.init_coefficients(layers)
 
   def init_coefficients(self, layers: Tuple[int]) -> None:
-    min = -1
-    max = 1
-
     self.layers = layers
     self.biases: np.ndarray = np.empty(len(layers)-1, dtype=np.ndarray)
     self.weights: np.ndarray = np.empty(len(layers)-1, dtype=np.ndarray)
     for i in range(len(layers)-1):
+      max = math.sqrt(2/layers[i])
+      min = -max
       self.biases[i] = config.rng.uniform(min,max,(layers[i+1], 1))
       self.weights[i] = config.rng.uniform(min,max,(layers[i+1], layers[i]))
 
@@ -44,20 +44,8 @@ class BaseNetwork:
     return activations[-1]
 
   def feedforward_layer(self, i: int, last_activations: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    # print(f"layer = {i}")
-    # print("last_activations")
-    # print(last_activations)
-    # print("weights")
-    # print(self.weights[i])
-    # print("biases")
-    # print(self.biases[i])
-
-    # print(f"z[{i}]")
-
     # z_{i} = w * a_{i-1} + b
     z = np.matmul(self.weights[i], last_activations) + self.biases[i]
-
-    # print(z)
 
     # Sometimes, the default activation function, self.activation,
     # will not always be the activation for every layer. For instance,
