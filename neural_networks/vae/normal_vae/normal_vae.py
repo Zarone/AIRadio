@@ -149,7 +149,7 @@ class VAE(BaseNetwork):
     return (z_values, activations)
 
   def gen(self, mu, log_variance, iter=100) -> Tuple[np.ndarray, np.ndarray]:
-    a = 0.01
+    a = 0
     epsilon = (np.random.randn(len(mu)).reshape(-1, 1)) * (1-math.exp(-a*iter))
     z = mu + np.exp(0.5 * log_variance) * epsilon
     return (z, epsilon)
@@ -206,8 +206,11 @@ class VAE(BaseNetwork):
     bias_gradient = np.empty(self.biases.shape, np.ndarray)
     reconstruction_loss = 0
     kl_loss = 0
-    total_datapoint_magnitude = 0.001 + np.linalg.norm(batch) 
-    Beta = 1
+
+    # Beta affects the relative importance of kl_loss 
+    # with respect to reconstruction_loss in calculating
+    # the gradient.
+    Beta = 0
 
     for i, _ in enumerate(weight_gradient):
       weight_gradient[i] = np.zeros(self.weights[i].shape)
@@ -291,7 +294,7 @@ class VAE(BaseNetwork):
       weight_gradient[0] += np.matmul(decoder_gradients_z[0], data_point.transpose())
       bias_gradient[0] += decoder_gradients_z[0]
 
-    self.weights -= learning_rate * weight_gradient/total_datapoint_magnitude/len(batch)
+    self.weights -= learning_rate * weight_gradient/len(batch)
     self.biases -= learning_rate * bias_gradient/len(batch)
     return reconstruction_loss/len(batch), kl_loss/len(batch)
 
