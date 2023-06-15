@@ -148,9 +148,8 @@ class VAE(BaseNetwork):
 
     return (z_values, activations)
 
-  def gen(self, mu, log_variance, iter=100) -> Tuple[np.ndarray, np.ndarray]:
-    a = 0
-    epsilon = (np.random.randn(len(mu)).reshape(-1, 1)) * (1-math.exp(-a*iter))
+  def gen(self, mu, log_variance, iter=1, max_iter=1) -> Tuple[np.ndarray, np.ndarray]:
+    epsilon = (np.random.randn(len(mu)).reshape(-1, 1)) * (iter/max_iter)
     z = mu + np.exp(0.5 * log_variance) * epsilon
     return (z, epsilon)
 
@@ -158,20 +157,22 @@ class VAE(BaseNetwork):
   def graph_loss(losses, reconstruction_losses, kl_losses):
     sub = plt.subplots(2, sharex=True)
     axs: Any = sub[1]
-    # axs[0].plot(losses, "purple", label="Total Loss")
-    # axs[0].plot(kl_losses, "red", label="KL Divergence")
+    axs[0].plot(losses, "purple", label="Total Loss")
+    axs[0].plot(kl_losses, "red", label="KL Divergence")
     axs[0].plot(reconstruction_losses, "blue", label="Reconstruction Loss")
     axs[0].set(ylabel='Loss',
      title='Loss over time (Training Data)')
     axs[0].legend(loc="upper left")
-    # axs[1].plot(losses, "purple", label="Total Loss")
-    # axs[1].plot(kl_losses, "red", label="KL Divergence")
+    axs[1].plot(losses, "purple", label="Total Loss")
+    axs[1].plot(kl_losses, "red", label="KL Divergence")
     axs[1].plot(reconstruction_losses, "blue", label="Reconstruction Loss")
     axs[1].set(xlabel='Mini Batch', ylabel='Loss',
      title='Loss over time (Test Data)')
     axs[1].legend(loc="upper left")
     axs[0].grid()
     axs[1].grid()
+    axs[0].semilogy()
+    axs[1].semilogy()
     plt.show()
 
 
@@ -181,6 +182,9 @@ class VAE(BaseNetwork):
     reconstruction_losses = []
     training_data = np.array(_training_data, copy=True)
     per_epoch = len(training_data) // batch_size
+
+    max_iterations = per_epoch * max_epochs
+
     if per_epoch == 0:
       raise Exception("Batch Size greater than Data Set")
     for i in range(max_epochs):
@@ -188,7 +192,9 @@ class VAE(BaseNetwork):
       for j in range(per_epoch):
         index = j * batch_size
         batch = training_data[index:index+batch_size]
-        reconstruction_loss, kl_loss = self.training_step(batch, learning_rate, i*per_epoch+j)
+
+        reconstruction_loss, kl_loss = self.training_step(batch, learning_rate, i*per_epoch+j, max_iter=max_iterations)
+
         kl_losses.append(kl_loss)
         reconstruction_losses.append(reconstruction_loss)
         loss = kl_loss+reconstruction_loss
@@ -200,7 +206,7 @@ class VAE(BaseNetwork):
     if graph:
       self.graph_loss(losses, reconstruction_losses, kl_losses)
 
-  def training_step(self, batch, learning_rate, iter):
+  def training_step(self, batch, learning_rate, iter, max_iter):
     # This gradient is added to for each data point in the batch
     weight_gradient = np.empty(self.weights.shape, np.ndarray)
     bias_gradient = np.empty(self.biases.shape, np.ndarray)
@@ -210,7 +216,7 @@ class VAE(BaseNetwork):
     # Beta affects the relative importance of kl_loss 
     # with respect to reconstruction_loss in calculating
     # the gradient.
-    Beta = 0
+    Beta = 1
 
     for i, _ in enumerate(weight_gradient):
       weight_gradient[i] = np.zeros(self.weights[i].shape)
@@ -218,7 +224,7 @@ class VAE(BaseNetwork):
 
     for i, data_point in enumerate(batch):
       z1, a1, mu, log_variance = self.encode(data_point)
-      generated, epsilon = self.gen(mu, log_variance, iter)
+      generated, epsilon = self.gen(mu, log_variance, iter, max_iter)
       z2, a2 = self.decode(generated)
 
       # These are needed for some gradient calculations
@@ -235,7 +241,7 @@ class VAE(BaseNetwork):
       # Loss Gradients with respect to z, for just the decoder
       decoder_gradients_z = np.empty((len(z_values)), np.ndarray)
 
-      decoder_gradients_z[-1] = dL_daL# * self.activation_derivative(z_values[-1])
+      decoder_gradients_z[-1] = dL_daL
 
       last_index = len(z_values) - 1
       first_index = len(self.encoder_layers) - 2
@@ -294,7 +300,7 @@ class VAE(BaseNetwork):
       weight_gradient[0] += np.matmul(decoder_gradients_z[0], data_point.transpose())
       bias_gradient[0] += decoder_gradients_z[0]
 
-    self.weights -= learning_rate * weight_gradient/len(batch)
-    self.biases -= learning_rate * bias_gradient/len(batch)
+    self.weights -= learning_rate/len(batch)/len(batch[0]) * weight_gradient
+    self.biases -= learning_rate/len(batch)/len(batch[0]) * bias_gradient
     return reconstruction_loss/len(batch), kl_loss/len(batch)
 

@@ -26,32 +26,35 @@ print(f"Current Size of Each Song: {len(sounds[0])}")
 
 # Prevents loss gradients from being too
 # extreme
-sounds = sounds/10
+scale = 10
+sounds = sounds/scale
 
-encoder_layers = (song_length, 50, 25)
+encoder_layers = (song_length, 80, 60, 50)
 decoder_layers = encoder_layers[::-1]
  
 losses = []
 notANumberCount = 0
-for i in range(30):
-  compression_VAE = VAE(encoder_layers, decoder_layers)
-  compression_VAE.train(sounds, 30, len(sounds), graph=False, learning_rate=0.05, print_epochs=False)
+histogram = False 
 
-  # print(f"test input:\n {sounds[0]*10}")
+for i in range(30 if histogram else 1):
+  compression_VAE = VAE(encoder_layers, decoder_layers)
+  compression_VAE.train(sounds, 1000, len(sounds), graph=(not histogram), learning_rate=0.05, print_epochs=(not histogram))
+
+  if not histogram:
+    print(f"test input:\n {sounds[0]*scale}")
 
   _, _, mu, log_variance = compression_VAE.encode( sounds[0] )
 
-  # print(f"mu:\n {mu} \nsigma:\n {np.exp(0.5*log_variance)}")
-
   generated, epsilon = compression_VAE.gen(mu, -100)
-
-  # print(f"generated:\n {generated}")
 
   decoded = compression_VAE.decode(generated)[1]
 
-  # print(f"decoded:\n {decoded[-1]*10}")
+  if not histogram:
+    print(f"decoded:\n {decoded[-1]*scale}")
 
-  # print(f"off by:\n {song_length*(decoded[-1]-sounds[0])}")
+  if not histogram:
+    print(f"off by:\n {10*(decoded[-1]-sounds[0])}")
+
   loss = compression_VAE.vae_loss(sounds[0], decoded[-1], mu, log_variance)
   r_loss = loss[0]
 
@@ -60,11 +63,11 @@ for i in range(30):
   else:
     losses.append(r_loss)
 
-fig, ax = plt.subplots()
-ax: Any = ax
-n_bins = 20
+if histogram:
+  fig, ax = plt.subplots()
+  ax: Any = ax
+  n_bins = 20
 
-# We can set the number of bins with the *bins* keyword argument.
-ax.hist(losses, bins=n_bins)
-plt.show()
-print(f"nan count: {notANumberCount}")
+  ax.hist(losses, bins=n_bins)
+  plt.show()
+  print(f"nan count: {notANumberCount}")
