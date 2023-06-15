@@ -175,12 +175,11 @@ class VAE(BaseNetwork):
     plt.show()
 
 
-  def train(self, _training_data: np.ndarray, max_epochs: int, batch_size:int=100, test_data: (np.ndarray|None)=None, learning_rate=0.05, graph=False) -> None:
+  def train(self, _training_data: np.ndarray, max_epochs: int, batch_size:int=100, test_data: (np.ndarray|None)=None, learning_rate=0.05, graph=False, print_epochs=True) -> None:
     losses = []
     kl_losses = []
     reconstruction_losses = []
     training_data = np.array(_training_data, copy=True)
-    print(len(training_data))
     per_epoch = len(training_data) // batch_size
     if per_epoch == 0:
       raise Exception("Batch Size greater than Data Set")
@@ -194,7 +193,8 @@ class VAE(BaseNetwork):
         reconstruction_losses.append(reconstruction_loss)
         loss = kl_loss+reconstruction_loss
         losses.append(loss)
-        print(f"Epoch {i}, Mini-Batch {j}: KL Loss = {kl_loss}, Reconstruction Loss = {reconstruction_loss}")
+        if print_epochs:
+          print(f"Epoch {i}, Mini-Batch {j}: KL Loss = {kl_loss}, Reconstruction Loss = {reconstruction_loss}")
       if test_data:
         raise NotImplementedError("Testing not implemented")
     if graph:

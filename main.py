@@ -1,6 +1,9 @@
 import numpy as np
 import audio_parsing.audio_parsing as audio
 from neural_networks.vae.normal_vae.normal_vae import VAE
+import math
+import matplotlib.pyplot as plt
+from typing import Any
 
 sounds, names = audio.get_raw_data()
 
@@ -28,24 +31,40 @@ sounds = sounds/10
 encoder_layers = (song_length, 50, 25)
 decoder_layers = encoder_layers[::-1]
  
-compression_VAE = VAE(encoder_layers, decoder_layers)
-compression_VAE.train(sounds, 5000, len(sounds), graph=True, learning_rate=0.05)
+losses = []
+notANumberCount = 0
+for i in range(30):
+  compression_VAE = VAE(encoder_layers, decoder_layers)
+  compression_VAE.train(sounds, 30, len(sounds), graph=False, learning_rate=0.05, print_epochs=False)
 
-print(f"test input:\n {sounds[0]*song_length}")
+  # print(f"test input:\n {sounds[0]*10}")
 
-_, _, mu, log_variance = compression_VAE.encode( sounds[0] )
+  _, _, mu, log_variance = compression_VAE.encode( sounds[0] )
 
-# print(f"mu:\n {mu} \nsigma:\n {np.exp(0.5*log_variance)}")
+  # print(f"mu:\n {mu} \nsigma:\n {np.exp(0.5*log_variance)}")
 
-generated, epsilon = compression_VAE.gen(mu, -100)
+  generated, epsilon = compression_VAE.gen(mu, -100)
 
-# print(f"generated:\n {generated}")
+  # print(f"generated:\n {generated}")
 
-decoded = compression_VAE.decode(generated)[1]
+  decoded = compression_VAE.decode(generated)[1]
 
-print(f"decoded:\n {decoded[-1]*song_length}")
+  # print(f"decoded:\n {decoded[-1]*10}")
 
-print(f"off by:\n {song_length*(decoded[-1]-sounds[0])}")
+  # print(f"off by:\n {song_length*(decoded[-1]-sounds[0])}")
+  loss = compression_VAE.vae_loss(sounds[0], decoded[-1], mu, log_variance)
+  r_loss = loss[0]
 
-# compressed_sounds = np.asarray([compression_VAE.encode(sound) for sound in sounds])
+  if math.isnan(r_loss) or r_loss > 1E4:
+    notANumberCount+=1
+  else:
+    losses.append(r_loss)
 
+fig, ax = plt.subplots()
+ax: Any = ax
+n_bins = 20
+
+# We can set the number of bins with the *bins* keyword argument.
+ax.hist(losses, bins=n_bins)
+plt.show()
+print(f"nan count: {notANumberCount}")

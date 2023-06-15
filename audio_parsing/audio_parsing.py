@@ -8,7 +8,7 @@ import random
 def get_raw_data() -> Tuple[np.ndarray, List]:
   dir = get_directories()
   song_names = [song_dir for song_dir in dir]
-  max_elements = 100
+  max_elements = 50
   print(f"REMINDER: I shrunk that song size to {max_elements} element")
   song_data = np.array([get_raw_audio(song_dir)[0:max_elements] for song_dir in dir])
   return (song_data, song_names)
