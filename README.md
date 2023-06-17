@@ -1,7 +1,7 @@
 # AI Radio
 
 ## To Do
-- Create Music Parser ✅
+- Basic VAE Setup
 - Create mini VAE
   - Take N momentary amplitudes of the sound clips, and then train that to be compressed to N′ dimensional latent space.
   - I could even test using multiple of these, if there is just too much data at runtime.

@@ -2,7 +2,7 @@ from neural_networks.components.optimizer.optimizer import Optimizer
 import numpy as np
 
 class Momentum(Optimizer):
-  def __init__(self, Beta: float = 0.5):
+  def __init__(self, Beta: float = 0.95):
     self.Beta = Beta
     self.v_dw = None
     self.v_db = None
@@ -15,7 +15,7 @@ class Momentum(Optimizer):
 
     self.v_dw = self.Beta * self.v_dw + (1-self.Beta) * weight_gradient
 
-    return self.v_dw
+    return self.v_dw/(1-self.Beta)
 
   def adjusted_bias_gradient(self, bias_gradient):
     if self.v_db is None:
@@ -25,4 +25,5 @@ class Momentum(Optimizer):
 
     self.v_db = self.Beta * self.v_db + (1-self.Beta) * bias_gradient 
 
-    return self.v_db
+    return self.v_db/(1-self.Beta)
+

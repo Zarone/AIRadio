@@ -78,7 +78,7 @@ class VAE(BaseNetwork):
 
   def loss(self, y_true, y_pred, mu, log_var):
     # Reconstruction loss
-    reconstruction_loss = np.mean(np.square(y_true - y_pred)[0], axis=-1)
+    reconstruction_loss = np.mean(np.square(y_true - y_pred))
 
     # Regularization term - KL divergence
     kl_loss = -0.5 * np.mean( (1 + log_var - np.square(mu) - np.exp(log_var)) )
@@ -152,8 +152,8 @@ class VAE(BaseNetwork):
 
     return (z_values, activations)
 
-  def gen(self, mu, log_variance, iter=1, max_iter=1) -> Tuple[np.ndarray, np.ndarray]:
-    epsilon = (np.random.randn(len(mu)).reshape(-1, 1)) * (iter/max_iter)
+  def gen(self, mu, log_variance) -> Tuple[np.ndarray, np.ndarray]:
+    epsilon = (np.random.randn(len(mu)).reshape(-1, 1))
     z = mu + np.exp(0.5 * log_variance) * epsilon
     return (z, epsilon)
 
@@ -187,8 +187,6 @@ class VAE(BaseNetwork):
     training_data = np.array(_training_data, copy=True)
     per_epoch = len(training_data) // batch_size
 
-    max_iterations = per_epoch * max_epochs
-
     # This is because, with a lot of inputs, we have a harder
     # time stabilizing gradient.
     adjusted_learning_rate = learning_rate / len(training_data[0])
@@ -201,7 +199,7 @@ class VAE(BaseNetwork):
         index = j * batch_size
         batch = training_data[index:index+batch_size]
 
-        reconstruction_loss, kl_loss = self.training_step(batch, adjusted_learning_rate, i*per_epoch+j, max_iter=max_iterations)
+        reconstruction_loss, kl_loss = self.training_step(batch, adjusted_learning_rate)
 
         kl_losses.append(kl_loss)
         reconstruction_losses.append(reconstruction_loss)
@@ -214,7 +212,7 @@ class VAE(BaseNetwork):
     if graph:
       self.graph_loss(losses, reconstruction_losses, kl_losses)
 
-  def training_step(self, batch, learning_rate, iter, max_iter):
+  def training_step(self, batch, learning_rate):
     # This gradient is added to for each data point in the batch
     weight_gradient = np.empty(self.weights.shape, np.ndarray)
     bias_gradient = np.empty(self.biases.shape, np.ndarray)
@@ -232,7 +230,7 @@ class VAE(BaseNetwork):
 
     for i, data_point in enumerate(batch):
       z1, a1, mu, log_variance = self.encode(data_point)
-      generated, epsilon = self.gen(mu, log_variance, iter, max_iter)
+      generated, epsilon = self.gen(mu, log_variance)
       z2, a2 = self.decode(generated)
 
       # These are needed for some gradient calculations
