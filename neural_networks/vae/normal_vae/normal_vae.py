@@ -308,7 +308,7 @@ class VAE(BaseNetwork):
       weight_gradient[0] += np.matmul(decoder_gradients_z[0], data_point.transpose())
       bias_gradient[0] += decoder_gradients_z[0]
 
-    self.weights -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(weight_gradient)
-    self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(bias_gradient)
+    self.weights -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(weight_gradient/len(batch[0]))
+    self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_bias_gradient(bias_gradient/len(batch[0]))
     return reconstruction_loss/len(batch), kl_loss/len(batch)
 
