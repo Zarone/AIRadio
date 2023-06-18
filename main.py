@@ -14,7 +14,7 @@ print(f"Current Number of Songs: {len(sounds)}")
 print(f"Current Size of Each Song: {len(sounds[0])}")
 
 with cProfile.Profile() as profile:
-  test_network(sounds, .1, 10000, (song_length, 25))
+  test_network(sounds, .1, 10000, (song_length, 30, 25), decoder_layers=(25, 29, song_length))
 
 results = pstats.Stats(profile)
 results.sort_stats(pstats.SortKey.CUMULATIVE)

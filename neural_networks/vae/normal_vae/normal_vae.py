@@ -77,11 +77,13 @@ class VAE(BaseNetwork):
 
 
   def loss(self, y_true, y_pred, mu, log_var):
+    n = y_true.shape[0]  # Number of samples
+
     # Reconstruction loss
-    reconstruction_loss = np.mean(np.square(y_true - y_pred))
+    reconstruction_loss = np.sum(np.square(y_true - y_pred)) / n
 
     # Regularization term - KL divergence
-    kl_loss = -0.5 * np.mean( (1 + log_var - np.square(mu) - np.exp(log_var)) )
+    kl_loss = -0.5 * np.sum(1 + log_var - np.square(mu) - np.exp(log_var)) / n
 
     # Total loss
     # total_loss = reconstruction_loss + kl_loss
@@ -90,15 +92,8 @@ class VAE(BaseNetwork):
 
 
   def encode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    activations = np.empty(
-      len(self.encoder_layers)-1,
-      dtype=np.ndarray
-    )
-
-    z_values = np.empty(
-      len(self.encoder_layers)-1,
-      dtype=np.ndarray
-    )
+    activations = np.array([None] * (len(self.encoder_layers) - 1))
+    z_values = np.array([None] * (len(self.encoder_layers) - 1))
 
     i = 0
 
@@ -117,7 +112,12 @@ class VAE(BaseNetwork):
 
     parameters_count = len(activations[i])//2
 
-    return (activations, z_values, activations[-1][0:parameters_count], activations[-1][parameters_count:parameters_count*2])
+    return (
+      activations,
+      z_values,
+      activations[-1][:parameters_count], 
+      activations[-1][parameters_count:parameters_count*2]
+    )
 
 
   def decode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -153,7 +153,7 @@ class VAE(BaseNetwork):
     return (z_values, activations)
 
   def gen(self, mu, log_variance) -> Tuple[np.ndarray, np.ndarray]:
-    epsilon = (np.random.randn(len(mu)).reshape(-1, 1))
+    epsilon = 0#(np.random.randn(len(mu)).reshape(-1, 1))
     z = mu + np.exp(0.5 * log_variance) * epsilon
     return (z, epsilon)
 
@@ -234,32 +234,34 @@ class VAE(BaseNetwork):
       z2, a2 = self.decode(generated)
 
       # These are needed for some gradient calculations
-      z_values = np.hstack((z1, z2))
-      activations = np.hstack((a1, a2))
-      activations[len(self.encoder_layers)-2] = generated
+      a1[len(self.encoder_layers)-2] = generated
 
       # Partial Derivative of Loss with respect to the output activations
-      dL_daL = (activations[-1] - data_point) * (2/len(activations[-1]))
+      dL_daL = (a2[-1] - data_point) * (2/len(a2[-1]))
       if print_epochs:
-        delta_reconstruction_loss, delta_kl_loss = self.loss(data_point, activations[-1], mu, log_variance)
+        delta_reconstruction_loss, delta_kl_loss = self.loss(data_point, a2[-1], mu, log_variance)
         reconstruction_loss += delta_reconstruction_loss
         kl_loss += delta_kl_loss
 
+      len_z = len(z1) + len(z2)
+
       # Loss Gradients with respect to z, for just the decoder
-      decoder_gradients_z = np.empty((len(z_values)), np.ndarray)
+      decoder_gradients_z = np.empty((len_z), np.ndarray)
 
       decoder_gradients_z[-1] = dL_daL
 
-      last_index = len(z_values) - 1
+      last_index = len_z - 1
       first_index = len(self.encoder_layers) - 2
 
       # Backpropagate through Decoder
       for j in range(last_index, first_index, -1):
+        z_layer = z2[j-len(z1)] if j >= len(z1) else z1[j]
         if j != last_index:
           decoder_gradients_z[j] = np.matmul(
               self.weights[j+1].transpose(), decoder_gradients_z[j+1]
-            ) * self.activation_derivative(z_values[j])
-        weight_gradient[j] += np.matmul(decoder_gradients_z[j], activations[j-1].transpose())
+            ) * self.activation_derivative(z_layer)
+        a_layer = a2[j-1-len(a1)] if j-1 >= len(a1) else a1[j-1]
+        weight_gradient[j] += np.matmul(decoder_gradients_z[j], a_layer.transpose())
         bias_gradient[j] += decoder_gradients_z[j]
 
 
@@ -276,18 +278,6 @@ class VAE(BaseNetwork):
         * epsilon/2*np.exp(log_variance/2) \
         -Beta*(1-np.exp(log_variance))/self.latent_size/2
 
-      # This helps to reduce the chance of a gradient
-      # growing out of control
-      max_grad_norm = np.linalg.norm(mu)
-      grad_norm = np.linalg.norm(dL_dmu)
-      if grad_norm > max_grad_norm:
-        dL_dmu = dL_dmu * (max_grad_norm / grad_norm)
-
-      max_grad_norm = np.linalg.norm(log_variance)
-      grad_norm = np.linalg.norm(dL_dlogvar)
-      if grad_norm > max_grad_norm:
-        dL_dlogvar = dL_dlogvar * (max_grad_norm / grad_norm)
-
       last_index = first_index
       first_index = -1
 
@@ -298,10 +288,10 @@ class VAE(BaseNetwork):
         if j != last_index:
           decoder_gradients_z[j] = np.matmul(
               self.weights[j+1].transpose(), decoder_gradients_z[j+1]
-            ) * self.activation_derivative(z_values[j])
+            ) * self.activation_derivative(z1[j])
 
         if j != 0:
-          weight_gradient[j] += np.matmul(decoder_gradients_z[j], activations[j-1].transpose())
+          weight_gradient[j] += np.matmul(decoder_gradients_z[j], a1[j-1].transpose())
           bias_gradient[j] += decoder_gradients_z[j]
       
       weight_gradient[0] += np.matmul(decoder_gradients_z[0], data_point.transpose())
