@@ -85,9 +85,6 @@ class VAE(BaseNetwork):
     # Regularization term - KL divergence
     kl_loss = -0.5 * np.sum(1 + log_var - np.square(mu) - np.exp(log_var)) / n
 
-    # Total loss
-    # total_loss = reconstruction_loss + kl_loss
-
     return reconstruction_loss, kl_loss 
 
 
@@ -121,15 +118,8 @@ class VAE(BaseNetwork):
 
 
   def decode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    activations = np.empty(
-      len(self.decoder_layers)-1,
-      dtype=np.ndarray
-    )
-
-    z_values = np.empty(
-      len(self.decoder_layers)-1,
-      dtype=np.ndarray
-    )
+    activations = np.array([None] * (len(self.decoder_layers) - 1))
+    z_values = np.array([None] * (len(self.decoder_layers) - 1))
 
     i = 0
 
@@ -281,7 +271,7 @@ class VAE(BaseNetwork):
       last_index = first_index
       first_index = -1
 
-      decoder_gradients_z[last_index] = np.vstack((dL_dmu, dL_dlogvar))
+      decoder_gradients_z[last_index] = np.concatenate((dL_dmu, dL_dlogvar), axis=0)
 
       # Backpropagate through Encoder
       for j in range(last_index, first_index, -1):
