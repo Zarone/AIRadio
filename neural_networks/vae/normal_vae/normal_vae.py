@@ -199,7 +199,7 @@ class VAE(BaseNetwork):
         index = j * batch_size
         batch = training_data[index:index+batch_size]
 
-        reconstruction_loss, kl_loss = self.training_step(batch, adjusted_learning_rate)
+        reconstruction_loss, kl_loss = self.training_step(batch, adjusted_learning_rate, print_epochs)
 
         kl_losses.append(kl_loss)
         reconstruction_losses.append(reconstruction_loss)
@@ -212,7 +212,7 @@ class VAE(BaseNetwork):
     if graph:
       self.graph_loss(losses, reconstruction_losses, kl_losses)
 
-  def training_step(self, batch, learning_rate):
+  def training_step(self, batch, learning_rate, print_epochs):
     # This gradient is added to for each data point in the batch
     weight_gradient = np.empty(self.weights.shape, np.ndarray)
     bias_gradient = np.empty(self.biases.shape, np.ndarray)
@@ -240,9 +240,10 @@ class VAE(BaseNetwork):
 
       # Partial Derivative of Loss with respect to the output activations
       dL_daL = (activations[-1] - data_point) * (2/len(activations[-1]))
-      delta_reconstruction_loss, delta_kl_loss = self.loss(data_point, activations[-1], mu, log_variance)
-      reconstruction_loss += delta_reconstruction_loss
-      kl_loss += delta_kl_loss
+      if print_epochs:
+        delta_reconstruction_loss, delta_kl_loss = self.loss(data_point, activations[-1], mu, log_variance)
+        reconstruction_loss += delta_reconstruction_loss
+        kl_loss += delta_kl_loss
 
       # Loss Gradients with respect to z, for just the decoder
       decoder_gradients_z = np.empty((len(z_values)), np.ndarray)

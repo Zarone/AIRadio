@@ -4,7 +4,7 @@ from neural_networks.components.optimizer.adam import Adam
 import math
 from typing import Any
 
-def test_network(input, scale, max_epochs, encoder_layers, decoder_layers=None, thisOptimizer = Adam, histogram: bool = False, histogram_trials = 0):
+def test_network(input, scale, max_epochs, encoder_layers, decoder_layers=None, this_optimizer = Adam, loss_graph = False, histogram: bool = False, histogram_trials = 0):
   decoder_layers = decoder_layers or encoder_layers[::-1]
 
   sounds = input * scale
@@ -13,11 +13,11 @@ def test_network(input, scale, max_epochs, encoder_layers, decoder_layers=None, 
   for i in range(histogram_trials if histogram else 1):
     if histogram:
       print(f"Training Iteration {i}")
-    compression_VAE = VAE(encoder_layers, decoder_layers, optimizer=thisOptimizer())
-    compression_VAE.train(sounds, max_epochs, len(sounds), graph=(not histogram), learning_rate=0.1, print_epochs=(not histogram))
+    compression_VAE = VAE(encoder_layers, decoder_layers, optimizer=this_optimizer())
+    compression_VAE.train(sounds, max_epochs, len(sounds), graph=(not histogram and loss_graph), learning_rate=0.01, print_epochs=(not histogram ))
 
     if not histogram:
-      print(f"test input:\n {sounds[0]*scale}")
+      print(f"test input:\n {sounds[0]/scale}")
 
     _, _, mu, log_variance = compression_VAE.encode( sounds[0] )
 
@@ -44,6 +44,6 @@ def test_network(input, scale, max_epochs, encoder_layers, decoder_layers=None, 
     ax: Any = ax
     n_bins = 20
 
-    plt.title(f"Training Histogram, Optimizer={thisOptimizer.__name__}, nan count: {notANumberCount}")
+    plt.title(f"Training Histogram, Optimizer={this_optimizer.__name__}, nan count: {notANumberCount}")
     ax.hist(losses, bins=n_bins)
     plt.show()
