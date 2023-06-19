@@ -148,7 +148,7 @@ class VAE(BaseNetwork):
     return (z, epsilon)
 
   @staticmethod
-  def graph_loss(losses, reconstruction_losses, kl_losses):
+  def graph_loss(losses, reconstruction_losses, kl_losses, test_losses = None, test_reconstruction_losses = None, test_kl_losses = None):
     sub = plt.subplots(2, sharex=True)
     axs: Any = sub[1]
     axs[0].plot(losses, "purple", label="Total Loss")
@@ -157,23 +157,31 @@ class VAE(BaseNetwork):
     axs[0].set(ylabel='Loss',
      title='Loss over time (Training Data)')
     axs[0].legend(loc="upper left")
-    axs[1].plot(losses, "purple", label="Total Loss")
-    axs[1].plot(kl_losses, "red", label="KL Divergence")
-    axs[1].plot(reconstruction_losses, "blue", label="Reconstruction Loss")
-    axs[1].set(xlabel='Mini Batch', ylabel='Loss',
-     title='Loss over time (Test Data)')
-    axs[1].legend(loc="upper left")
     axs[0].grid()
-    axs[1].grid()
     axs[0].semilogy()
-    axs[1].semilogy()
+
+    if test_losses:
+      axs[1].plot(test_losses, "purple", label="Total Loss")
+      axs[1].plot(test_kl_losses, "red", label="KL Divergence")
+      axs[1].plot(test_reconstruction_losses, "blue", label="Reconstruction Loss")
+      axs[1].set(xlabel='Mini Batch', ylabel='Loss',
+       title='Loss over time (Test Data)')
+      axs[1].legend(loc="upper left")
+      axs[1].grid()
+      axs[1].semilogy() 
+
     plt.show()
 
 
   def train(self, _training_data: np.ndarray, max_epochs: int, batch_size:int=100, test_data: (np.ndarray|None)=None, learning_rate=0.05, graph=False, print_epochs=True) -> None:
+    print("len sounds", len(_training_data))
+    print("len test_data", len(test_data) if not test_data is None else 0)
     losses = []
     kl_losses = []
     reconstruction_losses = []
+    test_losses = []
+    test_kl_losses = []
+    test_reconstruction_losses = []
     training_data = np.array(_training_data, copy=True)
     per_epoch = len(training_data) // batch_size
 
@@ -195,12 +203,31 @@ class VAE(BaseNetwork):
         reconstruction_losses.append(reconstruction_loss)
         loss = kl_loss+reconstruction_loss
         losses.append(loss)
+
+        test_loss = 0
+        if not(test_data is None):
+          test_reconstruction_loss = 0
+          test_kl_loss = 0
+          for index, element in enumerate(test_data):
+            _, _, mu, logvar = self.encode(element)
+            generated, _ = self.gen(mu, logvar)
+            delta_test_reconstruction_loss, delta_test_kl_loss = self.loss(element, self.decode(generated)[1][-1], mu, logvar)
+            test_reconstruction_loss += delta_test_reconstruction_loss
+            test_kl_loss += delta_test_kl_loss
+          test_loss = test_reconstruction_loss + test_kl_loss
+
+          test_loss /= len(test_data)
+          test_kl_loss /= len(test_data)
+          test_reconstruction_loss /= len(test_data)
+
+          test_losses.append(test_loss)
+          test_kl_losses.append(test_kl_loss)
+          test_reconstruction_losses.append(test_reconstruction_loss)
+
         if print_epochs:
-          print(f"Epoch {i}, Mini-Batch {j}: KL Loss = {kl_loss}, Reconstruction Loss = {reconstruction_loss}")
-      if test_data:
-        raise NotImplementedError("Testing not implemented")
+          print(f"Epoch {i}, Mini-Batch {j}: Loss = {loss}, Test Loss = {test_loss}")
     if graph:
-      self.graph_loss(losses, reconstruction_losses, kl_losses)
+      self.graph_loss(losses, reconstruction_losses, kl_losses, test_losses, test_reconstruction_losses, test_kl_losses)
 
   def training_step(self, batch, learning_rate, print_epochs):
     # This gradient is added to for each data point in the batch

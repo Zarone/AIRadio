@@ -3,6 +3,7 @@ import numpy as np
 import neural_networks.components.config as config
 from neural_networks.components.activations import relu
 import math
+import matplotlib.pyplot as plt
 
 class BaseNetwork:
 
@@ -54,4 +55,3 @@ class BaseNetwork:
     # would have a value at key=final_layer_index with value=sigmoid
     activation_function = self.activation_exceptions.get(i, self.activation)
     return (z, activation_function(z))
-

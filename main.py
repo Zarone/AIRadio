@@ -13,12 +13,12 @@ song_length = len(sounds[0])
 print(f"Current Number of Songs: {len(sounds)}")
 print(f"Current Size of Each Song: {len(sounds[0])}")
 
-with cProfile.Profile() as profile:
-  test_network(sounds, .1, 10000, (song_length, 30, 25), decoder_layers=(25, 29, song_length))
+# with cProfile.Profile() as profile:
+test_network(sounds, .1, 5000, (song_length, 30, 25), decoder_layers=(25, 29, song_length), loss_graph=True)
 
-results = pstats.Stats(profile)
-results.sort_stats(pstats.SortKey.CUMULATIVE)
-results.dump_stats("profile.prof")
+# results = pstats.Stats(profile)
+# results.sort_stats(pstats.SortKey.CUMULATIVE)
+# results.dump_stats("profile.prof")
 
-subprocess.run(["snakeviz", "profile.prof"]) 
+# subprocess.run(["snakeviz", "profile.prof"]) 
 
