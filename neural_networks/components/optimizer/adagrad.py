@@ -5,6 +5,7 @@ class Adagrad(Optimizer):
   def __init__(self):
     self.s_dw = None
     self.s_db = None
+    self.epsilon_naught = 1E-15
 
   def adjusted_weight_gradient(self, weight_gradient):
     if self.s_dw is None:
@@ -16,7 +17,7 @@ class Adagrad(Optimizer):
 
     # This is somehow faster than vectorization
     for index, _ in enumerate(weight_gradient):
-      weight_gradient[index] /= np.sqrt(self.s_dw[index] + 0.0001)
+      weight_gradient[index] /= np.sqrt(self.s_dw[index] + self.epsilon_naught)
 
     return weight_gradient
 
@@ -29,6 +30,6 @@ class Adagrad(Optimizer):
     self.s_db += np.square(bias_gradient)
 
     for index, _ in enumerate(bias_gradient):
-      bias_gradient[index] /= np.sqrt(self.s_db[index] + 0.0001)
+      bias_gradient[index] /= np.sqrt(self.s_db[index] + self.epsilon_naught)
 
     return bias_gradient

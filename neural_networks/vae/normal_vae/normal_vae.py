@@ -1,3 +1,4 @@
+from neural_networks.components.optimizer.adam import Adam
 from neural_networks.components.base import BaseNetwork
 import numpy as np
 import neural_networks.components.config as config
@@ -17,7 +18,7 @@ class VAE(BaseNetwork):
       activation=relu, 
       activation_derivative=relu_derivative, 
       activation_exceptions: dict[int, Callable]={},
-      optimizer: Optimizer = SGD()
+      optimizer: Optimizer = Adam()
   ) -> None:
 
 
@@ -85,7 +86,7 @@ class VAE(BaseNetwork):
     # Regularization term - KL divergence
     kl_loss = -0.5 * np.sum(1 + log_var - np.square(mu) - np.exp(log_var)) / n
 
-    return reconstruction_loss, kl_loss 
+    return (reconstruction_loss, kl_loss)
 
 
   def encode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -149,8 +150,10 @@ class VAE(BaseNetwork):
 
   @staticmethod
   def graph_loss(losses, reconstruction_losses, kl_losses, test_losses = None, test_reconstruction_losses = None, test_kl_losses = None):
-    sub = plt.subplots(2, sharex=True)
+    sub = plt.subplots(2 if not len(test_losses) == 0 else 1, sharex=True)
     axs: Any = sub[1]
+    if len(test_losses) == 0:
+      axs = [axs]
     axs[0].plot(losses, "purple", label="Total Loss")
     axs[0].plot(kl_losses, "red", label="KL Divergence")
     axs[0].plot(reconstruction_losses, "blue", label="Reconstruction Loss")

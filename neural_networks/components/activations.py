@@ -14,3 +14,9 @@ def relu(x: np.ndarray):
 
 def relu_derivative(x: np.ndarray):
   return (x > 0) * 1.0
+
+def linear(x: np.ndarray):
+  return x
+
+def linear_derivative(x: np.ndarray):
+  return np.ones(x.shape)

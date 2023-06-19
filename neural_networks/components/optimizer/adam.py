@@ -10,6 +10,7 @@ class Adam(Optimizer):
     self.Beta1 = Beta1
     self.Beta2 = Beta2
     self.sqrt_func = np.vectorize(lambda x: np.sqrt(x), otypes=[np.ndarray] ) 
+    self.epsilon_naught = 1E-15
 
   def adjusted_weight_gradient(self, weight_gradient):
     if self.v_dw is None:
@@ -25,7 +26,7 @@ class Adam(Optimizer):
     self.v_dw = self.Beta1 * self.v_dw + (1-self.Beta1) * weight_gradient
     self.s_dw = self.Beta2 * self.s_dw + (1-self.Beta2) * np.square(weight_gradient)
 
-    return self.v_dw/(1-self.Beta1)/self.sqrt_func(self.s_dw + 0.0001)
+    return self.v_dw/(1-self.Beta1)/self.sqrt_func(self.s_dw + self.epsilon_naught)
 
   def adjusted_bias_gradient(self, bias_gradient):
     if self.v_db is None:
@@ -41,4 +42,4 @@ class Adam(Optimizer):
     self.v_db = self.Beta1 * self.v_db + (1-self.Beta1) * bias_gradient 
     self.s_db = self.Beta2 * self.s_db + (1-self.Beta2) * np.square(bias_gradient)
 
-    return self.v_db/(1-self.Beta1)/self.sqrt_func(self.s_db + 0.0001)
+    return self.v_db/(1-self.Beta1)/self.sqrt_func(self.s_db + self.epsilon_naught)
