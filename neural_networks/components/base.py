@@ -42,7 +42,7 @@ class BaseNetwork:
 
     self.init_coefficients(layers)
 
-  def init_coefficients(self, layers: Tuple[int]) -> None:
+  def init_coefficients(self, layers: Tuple[int, ...]) -> None:
     self.layers = layers
     self.biases: np.ndarray = np.empty(len(layers)-1, dtype=np.ndarray)
     self.weights: np.ndarray = np.empty(len(layers)-1, dtype=np.ndarray)
@@ -52,7 +52,7 @@ class BaseNetwork:
       self.biases[i] = config.rng.uniform(min,max,(layers[i+1], 1))
       self.weights[i] = config.rng.uniform(min,max,(layers[i+1], layers[i]))
 
-  def feedforward_full(self, input: np.ndarray) -> np.ndarray:
+  def feedforward_full(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     activations = np.empty(len(self.layers)-1, dtype=np.ndarray)
     zs = np.empty(len(self.layers)-1, dtype=np.ndarray)
     for i, _ in enumerate(activations):

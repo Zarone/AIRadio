@@ -1,4 +1,5 @@
 import numpy as np
+from typing import List, Tuple
 
 HEADING_GREEN= "\033[1;32m"
 HEADING_RED = "\033[1;31m"
@@ -12,6 +13,9 @@ class Tester:
     self.name = name
     self.passed_all = True
     self.tests = []
+    self.last_x = 0
+    self.last_y = 0 
+    self.test_data = []
 
   def __del__(self):
     for test in self.tests:
@@ -22,36 +26,40 @@ class Tester:
     else:
       print(f"{HEADING_RED}{self.name} Failed{END_FORMAT}")
 
-    for test in self.tests:
-      self.unit_test(test[0], test[1])
+    for i, test in enumerate(self.tests):
+      self.unit_test(test[0], test[1], i)
 
   def tester(self, name: str, passed: bool):
     self.tests.append((name, passed)) 
+    self.test_data.append((self.last_x, self.last_y)) 
 
-  @staticmethod
-  def eq(x, y, err: float=0.001):
+  def eq(self, x, y, err: float=0.001, init_call=True):
+    if init_call:
+      self.last_x = x
+      self.last_y = y
     if isinstance(x, (float, int, np.integer)):
-      return Tester.num_equal(x,y,err)
-    elif isinstance(x, np.ndarray):
-      return Tester.arr_equal(x,y,err)
+      return self.num_equal(x,y,err)
+    elif isinstance(x, (np.ndarray, List, Tuple)):
+      return self.arr_equal(x,y,err)
     else:
       raise Exception(f"Unrecognized Type: {type(x)}")
 
 
-  @staticmethod
-  def num_equal(x: float|int|np.integer, y: float|int|np.integer, err: float=0.001):
+  def num_equal(self, x: float|int|np.integer, y: float|int|np.integer, err: float=0.001):
+    if not abs(x-y)<err:
+      print(f"expected {y}, got {x}")
     return abs(x-y)<err
 
-  @staticmethod
-  def arr_equal(x: np.ndarray, y: np.ndarray, err: float=0.001):
+  def arr_equal(self, x: np.ndarray|List|Tuple, y: np.ndarray|List|Tuple, err: float=0.001):
     for i, _ in enumerate(x):
-      if not Tester.eq(x[i], y[i], err):
+      if not self.eq(x[i], y[i], err, False):
         return False
     return True
 
-  def unit_test(self, name: str, passed: bool):
+  def unit_test(self, name: str, passed: bool, index: int):
     if passed:
       print(f"{GREEN}{INDENT}Test {name} Passed{END_FORMAT}")
     else:
       print(f"{RED}{INDENT}Test {name} Failed{END_FORMAT}")
+      print(f"{RED}  {INDENT}Expected {self.test_data[index][0]}, Got {self.test_data[index][1]}")
 
