@@ -17,9 +17,14 @@ input_output_sounds = np.stack((sounds,sounds), axis=1)
 layers = (song_length, 30, 10, 9, 30, 10, song_length)
 
 # with ProfileWrapper():
-# test_base(input_output_sounds, 0.1, 5000, layers, loss_graph=True, test_data=False)
-test_autoencoder(sounds, .1, 50, layers, loss_graph=True, test_data=False)
 
-# ae = AutoEncoder(layers)
-# ae.train(sounds, max_epochs=5000, batch_size=32, learning_rate=0.001)
-# print("encoded", ae.encode(sounds[0]))
+# test_base(input_output_sounds, 0.1, 5000, layers, loss_graph=True, test_data=False)
+# test_autoencoder(sounds, .1, 5000, layers, loss_graph=True, test_data=False)
+# test_vae(sounds, .1, 5000, layers, loss_graph=True, test_data=False)
+
+ae = AutoEncoder(layers)
+ae.train(sounds, max_epochs=500, batch_size=32, learning_rate=0.001)
+encoded = ae.encode(sounds[0])[1][-1]
+print("encoded", encoded)
+decoded = ae.decode(encoded)[1][-1]
+print("decoded", decoded)

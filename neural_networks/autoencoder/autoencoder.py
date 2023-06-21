@@ -51,13 +51,25 @@ class AutoEncoder(BaseNetwork):
     return super().feedforward(np.array([input, input]))
 
   def encode(self, input):
-    activations: List = [None] * (self.latent_layer+1)
-    zs: List = [None] * (self.latent_layer+1)
+    activations: List = [None] * (self.latent_layer)
+    zs: List = [None] * (self.latent_layer)
   
     last_activations = input
     for i in range(self.latent_layer):
       zs[i], activations[i] = self.feedforward_layer(i, last_activations)
       last_activations = activations[i]
+
+    return (zs, activations)
+
+  def decode(self, latent_space):
+    num_layers = len(self.layers) - 1
+    activations: List = [None] * (num_layers-self.latent_layer)
+    zs: List = [None] * (num_layers-self.latent_layer)
+  
+    last_activations = latent_space
+    for i in range(self.latent_layer, num_layers):
+      zs[i-self.latent_layer], activations[i-self.latent_layer] = self.feedforward_layer(i, last_activations)
+      last_activations = activations[i-self.latent_layer]
 
     return (zs, activations)
 

@@ -152,7 +152,7 @@ class VAE(BaseNetwork):
     return self.decode(generated)[1][-1]
 
   def gen(self, mu, log_variance) -> Tuple[np.ndarray, np.ndarray]:
-    epsilon = 0#(np.random.randn(len(mu)).reshape(-1, 1))
+    epsilon = (np.random.randn(len(mu)).reshape(-1, 1))
     z = mu + np.exp(0.5 * log_variance) * epsilon
     return (z, epsilon)
 
