@@ -31,6 +31,9 @@ class VAE(BaseNetwork):
     self.activation_exceptions = activation_exceptions
     self.init_coefficients(encoder_layers, decoder_layers)
 
+    self.weight_gradient = None
+    self.bias_gradient = None
+
 
   def init_coefficients(self, e_layers: Tuple[int, ...], d_layers: Tuple[int, ...]) -> None:
     self.encoder_layers = e_layers
@@ -149,7 +152,7 @@ class VAE(BaseNetwork):
     return (z, epsilon)
 
   @staticmethod
-  def graph_loss(losses, reconstruction_losses, kl_losses, test_losses = None, test_reconstruction_losses = None, test_kl_losses = None):
+  def graph_loss(losses, reconstruction_losses, kl_losses, test_losses = [], test_reconstruction_losses = None, test_kl_losses = None):
     sub = plt.subplots(2 if not len(test_losses) == 0 else 1, sharex=True)
     axs: Any = sub[1]
     if len(test_losses) == 0:
@@ -208,7 +211,7 @@ class VAE(BaseNetwork):
         losses.append(loss)
 
         test_loss = 0
-        if not(test_data is None):
+        if not(test_data is None) and print_epochs:
           test_reconstruction_loss = 0
           test_kl_loss = 0
           for index, element in enumerate(test_data):
@@ -228,27 +231,25 @@ class VAE(BaseNetwork):
           test_reconstruction_losses.append(test_reconstruction_loss)
 
         if print_epochs:
-          print(f"Epoch {i}, Mini-Batch {j}: Loss = {loss}, Test Loss = {test_loss}")
+          # print(f"Epoch {i}, Mini-Batch {j}: Loss = {loss}, Test Loss = {test_loss}")
+          print(f"Epoch {i}, Mini-Batch {j}: KL Loss = {kl_loss}, Reconstruction Loss = {reconstruction_loss}")
     if graph:
       self.graph_loss(losses, reconstruction_losses, kl_losses, test_losses, test_reconstruction_losses, test_kl_losses)
 
   def training_step(self, batch, learning_rate, print_epochs):
-    # This gradient is added to for each data point in the batch
-    weight_gradient = np.empty(self.weights.shape, np.ndarray)
-    bias_gradient = np.empty(self.biases.shape, np.ndarray)
+    self.init_gradients()
+    if (self.weight_gradient is None or self.bias_gradient is None):
+      raise Exception("weight gradient not defined for some reason")
     reconstruction_loss = 0
     kl_loss = 0
 
     # Beta affects the relative importance of kl_loss 
     # with respect to reconstruction_loss in calculating
     # the gradient.
-    Beta = 1
+    Beta = 0
 
-    for i, _ in enumerate(weight_gradient):
-      weight_gradient[i] = np.zeros(self.weights[i].shape)
-      bias_gradient[i] = np.zeros(self.biases[i].shape)
 
-    for i, data_point in enumerate(batch):
+    for _, data_point in enumerate(batch):
       z1, a1, mu, log_variance = self.encode(data_point)
       generated, epsilon = self.gen(mu, log_variance)
       z2, a2 = self.decode(generated)
@@ -256,14 +257,17 @@ class VAE(BaseNetwork):
       # These are needed for some gradient calculations
       a1[len(self.encoder_layers)-2] = generated
 
+      z_values = np.concatenate((z1, z2))
+      activation_values = np.concatenate((a1, a2))
+
       # Partial Derivative of Loss with respect to the output activations
-      dL_daL = (a2[-1] - data_point) * (2/len(a2[-1]))
+      dL_daL = (activation_values[-1] - data_point) * (2/len(activation_values[-1]))
       if print_epochs:
-        delta_reconstruction_loss, delta_kl_loss = self.loss(data_point, a2[-1], mu, log_variance)
+        delta_reconstruction_loss, delta_kl_loss = self.loss(data_point, activation_values[-1], mu, log_variance)
         reconstruction_loss += delta_reconstruction_loss
         kl_loss += delta_kl_loss
 
-      len_z = len(z1) + len(z2)
+      len_z = len(z_values)
 
       # Loss Gradients with respect to z, for just the decoder
       decoder_gradients_z = np.empty((len_z), np.ndarray)
@@ -275,26 +279,28 @@ class VAE(BaseNetwork):
 
       # Backpropagate through Decoder
       for j in range(last_index, first_index, -1):
-        z_layer = z2[j-len(z1)] if j >= len(z1) else z1[j]
+        z_layer = z_values[j]
         if j != last_index:
           decoder_gradients_z[j] = np.matmul(
               self.weights[j+1].transpose(), decoder_gradients_z[j+1]
             ) * self.activation_derivative(z_layer)
-        a_layer = a2[j-1-len(a1)] if j-1 >= len(a1) else a1[j-1]
-        weight_gradient[j] += np.matmul(decoder_gradients_z[j], a_layer.transpose())
-        bias_gradient[j] += decoder_gradients_z[j]
+        a_layer = activation_values[j-1]
+        self.weight_gradient[j] += np.matmul(decoder_gradients_z[j], a_layer.transpose())
+        self.bias_gradient[j] += decoder_gradients_z[j]
 
+
+      dL_da = np.matmul(self.weights[first_index+1].transpose(), decoder_gradients_z[first_index+1])
 
       # ∂L/∂mu = ∂L/∂z_n * ∂z_n/∂a_(n-1) * ∂a_(n-1)/∂mu + ∂L/∂D * ∂D/∂mu
       #        = ∂L/∂z_n * w_n           * 1            + 1    * mu/N
       #        = ∂L/∂z_n * w_n + mu/N
-      dL_dmu = np.matmul(self.weights[first_index+1].transpose(), decoder_gradients_z[first_index+1]) + Beta*mu/self.latent_size
+      dL_dmu = dL_da + Beta*mu/self.latent_size
 
       # ∂L/∂logvar = ∂L/∂z_n * ∂z_n/∂a_(n-1) * ∂a_(n-1)/∂logvar                + ∂L/∂D   * ∂D/∂logvar
       #            = ∂L/∂z_n * w_n           * epsilon/2*np.exp(logvar/2)      + 1       * (1-np.exp(logvar))/2N
       #            = ∂L/∂z_n * w_n * epsilon/2*np.exp(logvar/2) - (1-np.exp(logvar))/2N
       dL_dlogvar = \
-        np.matmul( self.weights[first_index+1].transpose(), decoder_gradients_z[first_index+1] ) \
+        dL_da \
         * epsilon/2*np.exp(log_variance/2) \
         -Beta*(1-np.exp(log_variance))/self.latent_size/2
 
@@ -308,16 +314,16 @@ class VAE(BaseNetwork):
         if j != last_index:
           decoder_gradients_z[j] = np.matmul(
               self.weights[j+1].transpose(), decoder_gradients_z[j+1]
-            ) * self.activation_derivative(z1[j])
+            ) * self.activation_derivative(z_values[j])
 
         if j != 0:
-          weight_gradient[j] += np.matmul(decoder_gradients_z[j], a1[j-1].transpose())
-          bias_gradient[j] += decoder_gradients_z[j]
+          self.weight_gradient[j] += np.matmul(decoder_gradients_z[j], activation_values[j-1].transpose())
+          self.bias_gradient[j] += decoder_gradients_z[j]
       
-      weight_gradient[0] += np.matmul(decoder_gradients_z[0], data_point.transpose())
-      bias_gradient[0] += decoder_gradients_z[0]
+      self.weight_gradient[0] += np.matmul(decoder_gradients_z[0], data_point.transpose())
+      self.bias_gradient[0] += decoder_gradients_z[0]
 
-    self.weights -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(weight_gradient/len(batch[0]))
-    self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_bias_gradient(bias_gradient/len(batch[0]))
+    self.weights -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient/len(batch[0]))
+    self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient/len(batch[0]))
     return reconstruction_loss/len(batch), kl_loss/len(batch)
 

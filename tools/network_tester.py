@@ -21,7 +21,7 @@ def test_vae(input, scale, max_epochs, encoder_layers, decoder_layers=None, this
         max_epochs, 
         test_data_start, 
         graph=(not histogram and loss_graph), 
-        learning_rate=0.01, 
+        learning_rate=0.5, 
         print_epochs=(not histogram ), 
         test_data=sounds[test_data_start:] if test_data else None
       )
@@ -72,28 +72,28 @@ def test_base(input, scale, max_epochs, layers, this_optimizer = Adam, loss_grap
         max_epochs, 
         test_data_start, 
         graph=(not histogram and loss_graph), 
-        learning_rate=0.005, 
+        learning_rate=0.5,
         print_epochs=(not histogram ), 
         test_data=sounds[test_data_start:] if test_data else None
       )
 
-    if not histogram:
-      print(f"test input:\n {sounds[0][0]/scale}")
+    # if not histogram:
+      # print(f"test input:\n {sounds[0][0]/scale}")
 
-    decoded = compression_AE.feedforward(sounds[0][0])
-    if not histogram:
-      print(f"decoded:\n {decoded/scale}")
+    # decoded = compression_AE.feedforward(sounds[0][0])
+    # if not histogram:
+      # print(f"decoded:\n {decoded/scale}")
 
-    if not histogram:
-      print(f"off by:\n {(decoded-sounds[0][0])/scale}")
+    # if not histogram:
+      # print(f"off by:\n {(decoded-sounds[0][0])/scale}")
 
-    loss = compression_AE.loss(sounds[0][0]/scale, decoded/scale)
-    r_loss = loss[0]
+    # loss = compression_AE.loss(sounds[0][0]/scale, decoded/scale)
+    # r_loss = loss[0]
 
-    if math.isnan(r_loss) or r_loss > 1500:
-      notANumberCount+=1
-    else:
-      losses.append(r_loss)
+    # if math.isnan(r_loss) or r_loss > 1500:
+      # notANumberCount+=1
+    # else:
+      # losses.append(r_loss)
 
   if histogram:
     fig, ax = plt.subplots()

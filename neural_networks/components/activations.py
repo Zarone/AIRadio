@@ -11,7 +11,7 @@ def relu(x: np.ndarray|float):
   return np.maximum(0, x)
 
 def relu_derivative(x: np.ndarray):
-  return (x > 0) * 1.0
+  return (x > 0)
 
 def linear(x: np.ndarray):
   return x

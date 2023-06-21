@@ -42,6 +42,10 @@ class BaseNetwork:
 
     self.init_coefficients(layers)
 
+    # These are used in training
+    self.weight_gradient = None
+    self.bias_gradient = None
+
   def init_coefficients(self, layers: Tuple[int, ...]) -> None:
     self.layers = layers
     self.biases: np.ndarray = np.empty(len(layers)-1, dtype=np.ndarray)
@@ -120,7 +124,7 @@ class BaseNetwork:
 
     # This is because, with a lot of inputs, we have a harder
     # time stabilizing gradient.
-    adjusted_learning_rate = learning_rate / len(training_data[0])
+    adjusted_learning_rate = learning_rate / len(training_data[0][0])
 
     if per_epoch == 0:
       raise Exception("Batch Size greater than Data Set")
@@ -135,7 +139,7 @@ class BaseNetwork:
         losses.append(loss)
 
         test_loss = 0
-        if not(test_data is None):
+        if not(test_data is None) and print_epochs:
           for index, element in enumerate(test_data):
             delta_test_reconstruction_loss = self.loss(test_data[index][1], self.feedforward(test_data[index][0]))[0]
             test_loss += delta_test_reconstruction_loss
@@ -148,30 +152,31 @@ class BaseNetwork:
     if graph:
       self.graph_loss(losses, test_losses)
 
+  def init_gradients(self):
+    if self.weight_gradient is None or self.bias_gradient is None:
+      self.weight_gradient = np.empty(self.weights.shape, np.ndarray)
+      self.bias_gradient = np.empty(self.biases.shape, np.ndarray)
+    for i, _ in enumerate(self.weight_gradient):
+      self.weight_gradient[i] = np.zeros(self.weights[i].shape)
+      self.bias_gradient[i] = np.zeros(self.biases[i].shape)
+
   def training_step(self, batch, learning_rate, print_epochs):
-    # This gradient is added to for each data point in the batch
-    weight_gradient = np.empty(self.weights.shape, np.ndarray)
-    bias_gradient = np.empty(self.biases.shape, np.ndarray)
+    self.init_gradients()
+    if (self.weight_gradient is None or self.bias_gradient is None):
+      raise Exception("weight gradient not defined for some reason")
     reconstruction_loss = 0
 
-    for i, _ in enumerate(weight_gradient):
-      weight_gradient[i] = np.zeros(self.weights[i].shape)
-      bias_gradient[i] = np.zeros(self.biases[i].shape)
-
-    for i, data_point in enumerate(batch):
+    for _, data_point in enumerate(batch):
       z_values, activations = self.feedforward_full(data_point[0])
 
       # Partial Derivative of Loss with respect to the output activations
       dL_daL = (activations[-1] - data_point[1]) * (2/len(activations[-1]))
-      # print("dL_daL")
-      # print(dL_daL)
       if print_epochs:
         delta_reconstruction_loss = self.loss(data_point[1], activations[-1])[0]
         reconstruction_loss += delta_reconstruction_loss
 
       len_z = len(z_values)
 
-      # Loss Gradients with respect to z, for just the decoder
       decoder_gradients_z = np.empty((len_z), np.ndarray)
 
       decoder_gradients_z[-1] = dL_daL * self.activation_derivative_exceptions.get(len(self.layers)-1, self.activation_derivative)(z_values[-1])
@@ -186,16 +191,16 @@ class BaseNetwork:
             ) * self.activation_derivative_exceptions.get(j+1, self.activation_derivative(z_layer))
 
         a_layer = activations[j-1]
-        weight_gradient[j] += np.matmul(decoder_gradients_z[j], a_layer.transpose())
-        bias_gradient[j] += decoder_gradients_z[j]
+        self.weight_gradient[j] += np.matmul(decoder_gradients_z[j], a_layer.transpose())
+        self.bias_gradient[j] += decoder_gradients_z[j]
         if j != 0:
-          weight_gradient[j] += np.matmul(decoder_gradients_z[j], activations[j-1].transpose())
-          bias_gradient[j] += decoder_gradients_z[j]
+          self.weight_gradient[j] += np.matmul(decoder_gradients_z[j], activations[j-1].transpose())
+          self.bias_gradient[j] += decoder_gradients_z[j]
 
-      weight_gradient[0] += np.matmul(decoder_gradients_z[0], data_point[0].transpose())
-      bias_gradient[0] += decoder_gradients_z[0]
+      self.weight_gradient[0] += np.matmul(decoder_gradients_z[0], data_point[0].transpose())
+      self.bias_gradient[0] += decoder_gradients_z[0]
 
-    self.weights -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(weight_gradient/len(batch[0]))
-    self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_bias_gradient(bias_gradient/len(batch[0]))
+    self.weights -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient/len(batch[0]))
+    self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient/len(batch[0]))
     return (reconstruction_loss/len(batch),)
 
