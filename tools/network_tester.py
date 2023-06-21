@@ -1,3 +1,4 @@
+from neural_networks.autoencoder.autoencoder import AutoEncoder
 from neural_networks.components.base import BaseNetwork
 import matplotlib.pyplot as plt
 from neural_networks.vae.normal_vae.normal_vae import VAE
@@ -80,3 +81,9 @@ def test_base(input, scale, max_epochs, layers, this_optimizer = Adam, loss_grap
       }
     test_network(BaseNetwork, args, input, scale, max_epochs, this_optimizer, loss_graph, histogram, histogram_trials, test_data)
 
+def test_autoencoder(input, scale, max_epochs, layers, this_optimizer = Adam, loss_graph = False, histogram: bool = False, histogram_trials = 0, test_data = False):
+  args: Dict = {
+      "layers": layers, 
+      "optimizer": this_optimizer(),
+    }
+  test_network(AutoEncoder, args, input, scale, max_epochs, this_optimizer, loss_graph, histogram, histogram_trials, test_data)

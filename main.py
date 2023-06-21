@@ -1,4 +1,5 @@
-from tools.network_tester import test_vae, test_base
+from neural_networks.autoencoder.autoencoder import AutoEncoder
+from tools.network_tester import *
 import audio_parsing.audio_parsing as audio
 import numpy as np
 from tools.profile import ProfileWrapper
@@ -16,4 +17,9 @@ input_output_sounds = np.stack((sounds,sounds), axis=1)
 layers = (song_length, 30, 10, 9, 30, 10, song_length)
 
 # with ProfileWrapper():
-test_base(input_output_sounds, .1, 5000, layers, loss_graph=True, test_data=False)
+# test_base(input_output_sounds, 0.1, 5000, layers, loss_graph=True, test_data=False)
+test_autoencoder(sounds, .1, 50, layers, loss_graph=True, test_data=False)
+
+# ae = AutoEncoder(layers)
+# ae.train(sounds, max_epochs=5000, batch_size=32, learning_rate=0.001)
+# print("encoded", ae.encode(sounds[0]))

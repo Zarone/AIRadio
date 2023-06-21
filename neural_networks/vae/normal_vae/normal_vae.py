@@ -114,8 +114,8 @@ class VAE(BaseNetwork):
     parameters_count = len(activations[i])//2
 
     return (
-      activations,
       z_values,
+      activations,
       activations[-1][:parameters_count], 
       activations[-1][parameters_count:parameters_count*2]
     )
