@@ -270,7 +270,7 @@ class VAE(BaseNetwork):
       len_z = len(z_values)
 
       # Loss Gradients with respect to z, for just the decoder
-      decoder_gradients_z = np.empty((len_z), np.ndarray)
+      decoder_gradients_z = np.array([None] * len_z)
 
       decoder_gradients_z[-1] = dL_daL
 

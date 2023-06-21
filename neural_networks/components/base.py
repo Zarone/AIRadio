@@ -1,6 +1,6 @@
 from neural_networks.components.optimizer.optimizer import Optimizer
 from neural_networks.components.optimizer.adam import Adam
-from typing import Any, Tuple, Callable
+from typing import Any, Tuple, Callable, List
 import numpy as np
 import neural_networks.components.config as config
 from neural_networks.components.activations import linear, linear_derivative, relu, relu_derivative
@@ -48,20 +48,27 @@ class BaseNetwork:
 
   def init_coefficients(self, layers: Tuple[int, ...]) -> None:
     self.layers = layers
-    self.biases: np.ndarray = np.empty(len(layers)-1, dtype=np.ndarray)
-    self.weights: np.ndarray = np.empty(len(layers)-1, dtype=np.ndarray)
-    for i in range(len(layers)-1):
+    num_layers = len(self.layers) - 1
+
+    self.biases: np.ndarray = np.array([None] * num_layers) 
+    self.weights: np.ndarray = np.array([None] * num_layers)
+
+    for i in range(num_layers):
       max = math.sqrt(2/layers[i])
       min = -max
       self.biases[i] = config.rng.uniform(min,max,(layers[i+1], 1))
       self.weights[i] = config.rng.uniform(min,max,(layers[i+1], layers[i]))
 
   def feedforward_full(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    activations = np.empty(len(self.layers)-1, dtype=np.ndarray)
-    zs = np.empty(len(self.layers)-1, dtype=np.ndarray)
+    num_layers = len(self.layers) - 1
+    activations: List = [None] * num_layers
+    zs: List = [None] * num_layers
+  
+    last_activations = input
     for i, _ in enumerate(activations):
-      last_activations = input if i==0 else activations[i-1]
       zs[i], activations[i] = self.feedforward_layer(i, last_activations)
+      last_activations = activations[i]
+
     return zs, activations
 
   def feedforward(self, input):
@@ -166,6 +173,7 @@ class BaseNetwork:
       raise Exception("weight gradient not defined for some reason")
     reconstruction_loss = 0
 
+    len_layers = len(self.layers)
     for _, data_point in enumerate(batch):
       z_values, activations = self.feedforward_full(data_point[0])
 
@@ -177,22 +185,20 @@ class BaseNetwork:
 
       len_z = len(z_values)
 
-      decoder_gradients_z = np.empty((len_z), np.ndarray)
+      decoder_gradients_z = np.array([None] * len_z)
 
-      decoder_gradients_z[-1] = dL_daL * self.activation_derivative_exceptions.get(len(self.layers)-1, self.activation_derivative)(z_values[-1])
+      decoder_gradients_z[-1] = dL_daL * self.activation_derivative_exceptions.get(len_layers-1, self.activation_derivative)(z_values[-1])
 
       last_index = len_z - 1
 
       for j in range(last_index, -1, -1):
         z_layer = z_values[j]
         if j != last_index:
+          activation_derivative_func = self.activation_derivative_exceptions.get(j+1, self.activation_derivative)
           decoder_gradients_z[j] = np.matmul(
-              self.weights[j+1].transpose(), decoder_gradients_z[j+1]
-            ) * self.activation_derivative_exceptions.get(j+1, self.activation_derivative(z_layer))
-
-        a_layer = activations[j-1]
-        self.weight_gradient[j] += np.matmul(decoder_gradients_z[j], a_layer.transpose())
-        self.bias_gradient[j] += decoder_gradients_z[j]
+            self.weights[j+1].transpose(), decoder_gradients_z[j+1]
+          ) * activation_derivative_func(z_layer)
+          
         if j != 0:
           self.weight_gradient[j] += np.matmul(decoder_gradients_z[j], activations[j-1].transpose())
           self.bias_gradient[j] += decoder_gradients_z[j]
