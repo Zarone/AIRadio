@@ -3,7 +3,7 @@ from neural_networks.components.optimizer.adam import Adam
 from typing import Any, Tuple, Callable, List
 import numpy as np
 import neural_networks.components.config as config
-from neural_networks.components.activations import linear, linear_derivative, relu, relu_derivative
+from neural_networks.components.activations import *
 import math
 import matplotlib.pyplot as plt
 
@@ -22,8 +22,8 @@ class BaseNetwork:
   def __init__(
       self, 
       layers: Tuple[int, ...], 
-      activation=relu, 
-      activation_derivative=relu_derivative, 
+      activation=leaky_relu, 
+      activation_derivative=leaky_relu_derivative, 
       activation_exceptions: dict[int, Callable]={},
       activation_derivative_exceptions: dict[int, Callable]={},
       optimizer: Optimizer = Adam()
@@ -59,17 +59,17 @@ class BaseNetwork:
       self.biases[i] = config.rng.uniform(min,max,(layers[i+1], 1))
       self.weights[i] = config.rng.uniform(min,max,(layers[i+1], layers[i]))
 
-  def feedforward_full(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+  def feedforward_full(self, input: np.ndarray) -> Tuple[List, List]:
     num_layers = len(self.layers) - 1
     activations: List = [None] * num_layers
     zs: List = [None] * num_layers
   
-    last_activations = input
+    last_activations = input[0]
     for i, _ in enumerate(activations):
       zs[i], activations[i] = self.feedforward_layer(i, last_activations)
       last_activations = activations[i]
 
-    return zs, activations
+    return (zs, activations)
 
   def feedforward(self, input):
     return self.feedforward_full(input)[1][-1]
@@ -90,10 +90,10 @@ class BaseNetwork:
     return (z, activation_function(z))
 
   def loss(self, y_true, y_pred):
-    n = y_true.shape[0]  # Number of samples
+    n = y_true[1].shape[0]  # Number of samples
 
     # Reconstruction loss
-    reconstruction_loss = np.sum(np.square(y_true - y_pred)) / n
+    reconstruction_loss = np.sum(np.square(y_true[1] - y_pred)) / n
 
     return (reconstruction_loss,)
 
@@ -129,10 +129,6 @@ class BaseNetwork:
 
     per_epoch = len(training_data) // batch_size
 
-    # This is because, with a lot of inputs, we have a harder
-    # time stabilizing gradient.
-    adjusted_learning_rate = learning_rate / len(training_data[0][0])
-
     if per_epoch == 0:
       raise Exception("Batch Size greater than Data Set")
     for i in range(max_epochs):
@@ -141,14 +137,14 @@ class BaseNetwork:
         index = j * batch_size
         batch = training_data[index:index+batch_size]
 
-        reconstruction_loss = self.training_step(batch, adjusted_learning_rate, print_epochs)[0]
+        reconstruction_loss = self.training_step(batch, learning_rate, print_epochs)[0]
         loss = reconstruction_loss
         losses.append(loss)
 
         test_loss = 0
         if not(test_data is None) and print_epochs:
           for index, element in enumerate(test_data):
-            delta_test_reconstruction_loss = self.loss(test_data[index][1], self.feedforward(test_data[index][0]))[0]
+            delta_test_reconstruction_loss = self.loss(test_data[index], self.feedforward(test_data[index]))[0]
             test_loss += delta_test_reconstruction_loss
 
           test_loss /= len(test_data)
@@ -175,12 +171,12 @@ class BaseNetwork:
 
     len_layers = len(self.layers)
     for _, data_point in enumerate(batch):
-      z_values, activations = self.feedforward_full(data_point[0])
+      z_values, activations = self.feedforward_full(data_point)
 
       # Partial Derivative of Loss with respect to the output activations
       dL_daL = (activations[-1] - data_point[1]) * (2/len(activations[-1]))
       if print_epochs:
-        delta_reconstruction_loss = self.loss(data_point[1], activations[-1])[0]
+        delta_reconstruction_loss = self.loss(data_point, activations[-1])[0]
         reconstruction_loss += delta_reconstruction_loss
 
       len_z = len(z_values)
@@ -206,7 +202,7 @@ class BaseNetwork:
       self.weight_gradient[0] += np.matmul(decoder_gradients_z[0], data_point[0].transpose())
       self.bias_gradient[0] += decoder_gradients_z[0]
 
-    self.weights -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient/len(batch[0]))
-    self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient/len(batch[0]))
+    self.weights -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient)
+    self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient)
     return (reconstruction_loss/len(batch),)
 

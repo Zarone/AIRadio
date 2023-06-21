@@ -2,7 +2,7 @@ from neural_networks.components.optimizer.adam import Adam
 from neural_networks.components.base import BaseNetwork
 import numpy as np
 import neural_networks.components.config as config
-from neural_networks.components.activations import relu, relu_derivative
+from neural_networks.components.activations import *
 from typing import Tuple, Callable, Any
 import matplotlib.pyplot as plt
 import math
@@ -15,8 +15,8 @@ class VAE(BaseNetwork):
       self, 
       encoder_layers: Tuple[int, ...], 
       decoder_layers: Tuple[int, ...], 
-      activation=relu, 
-      activation_derivative=relu_derivative, 
+      activation=leaky_relu, 
+      activation_derivative=leaky_relu_derivative, 
       activation_exceptions: dict[int, Callable]={},
       optimizer: Optimizer = Adam()
   ) -> None:
@@ -80,7 +80,7 @@ class VAE(BaseNetwork):
       index+=1
 
 
-  def loss(self, y_true, y_pred, mu, log_var):
+  def loss(self, y_true, y_pred, mu=0, log_var=0):
     n = y_true.shape[0]  # Number of samples
 
     # Reconstruction loss
@@ -146,6 +146,11 @@ class VAE(BaseNetwork):
 
     return (z_values, activations)
 
+  def feedforward(self, input: np.ndarray):
+    _, _, mu, log_variance = self.encode(input)
+    generated, _ = self.gen(mu, log_variance)
+    return self.decode(generated)[1][-1]
+
   def gen(self, mu, log_variance) -> Tuple[np.ndarray, np.ndarray]:
     epsilon = 0#(np.random.randn(len(mu)).reshape(-1, 1))
     z = mu + np.exp(0.5 * log_variance) * epsilon
@@ -191,10 +196,6 @@ class VAE(BaseNetwork):
     training_data = np.array(_training_data, copy=True)
     per_epoch = len(training_data) // batch_size
 
-    # This is because, with a lot of inputs, we have a harder
-    # time stabilizing gradient.
-    adjusted_learning_rate = learning_rate / len(training_data[0])
-
     if per_epoch == 0:
       raise Exception("Batch Size greater than Data Set")
     for i in range(max_epochs):
@@ -203,7 +204,7 @@ class VAE(BaseNetwork):
         index = j * batch_size
         batch = training_data[index:index+batch_size]
 
-        reconstruction_loss, kl_loss = self.training_step(batch, adjusted_learning_rate, print_epochs)
+        reconstruction_loss, kl_loss = self.training_step(batch, learning_rate, print_epochs)
 
         kl_losses.append(kl_loss)
         reconstruction_losses.append(reconstruction_loss)
@@ -246,7 +247,7 @@ class VAE(BaseNetwork):
     # Beta affects the relative importance of kl_loss 
     # with respect to reconstruction_loss in calculating
     # the gradient.
-    Beta = 0
+    Beta = 1
 
 
     for _, data_point in enumerate(batch):
@@ -323,7 +324,7 @@ class VAE(BaseNetwork):
       self.weight_gradient[0] += np.matmul(decoder_gradients_z[0], data_point.transpose())
       self.bias_gradient[0] += decoder_gradients_z[0]
 
-    self.weights -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient/len(batch[0]))
-    self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient/len(batch[0]))
+    self.weights -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient)
+    self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient)
     return reconstruction_loss/len(batch), kl_loss/len(batch)
 
