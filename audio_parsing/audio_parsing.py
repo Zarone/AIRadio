@@ -8,7 +8,9 @@ import random
 def get_raw_data(num_files, data_points) -> Tuple[np.ndarray, List]:
   dir = get_directories(num_files)
   song_names = [song_dir for song_dir in dir]
-  song_data = np.array([get_raw_audio(song_dir, data_points) for song_dir in dir])
+  print(f"Getting {len(dir)} songs...")
+  song_data = ([get_raw_audio(song_dir, data_points) for song_dir in dir])
+  # song_data = np.array([get_raw_audio(song_dir, data_points) for song_dir in dir])
   return (song_data, song_names)
 
 def play_audio(audio_data) -> None:

@@ -206,3 +206,11 @@ class BaseNetwork:
     self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient)
     return (reconstruction_loss/len(batch),)
 
+  def save_to_file(self, file: str):
+    np.savez(file, weights=self.weights, biases=self.biases)
+
+  def init_from_file(self, file: str):
+    parameters = np.load(file, allow_pickle=True)
+    self.weights = parameters['weights']
+    self.biases = parameters['biases']
+

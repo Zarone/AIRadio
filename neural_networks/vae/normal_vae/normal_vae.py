@@ -232,8 +232,8 @@ class VAE(BaseNetwork):
           test_reconstruction_losses.append(test_reconstruction_loss)
 
         if print_epochs:
-          # print(f"Epoch {i}, Mini-Batch {j}: Loss = {loss}, Test Loss = {test_loss}")
-          print(f"Epoch {i}, Mini-Batch {j}: KL Loss = {kl_loss}, Reconstruction Loss = {reconstruction_loss}")
+          print(f"Epoch {i}, Mini-Batch {j}: Loss = {loss}, Test Loss = {test_loss}")
+          # print(f"Epoch {i}, Mini-Batch {j}: KL Loss = {kl_loss}, Reconstruction Loss = {reconstruction_loss}")
     if graph:
       self.graph_loss(losses, reconstruction_losses, kl_losses, test_losses, test_reconstruction_losses, test_kl_losses)
 

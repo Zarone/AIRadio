@@ -11,8 +11,7 @@ def test_network(network_class, args, input, scale, max_epochs, this_optimizer =
   losses = []
   notANumberCount = 0
 
-  activation_name = ""
-
+  last_network = None
   for i in range(histogram_trials if histogram else 1):
     if histogram:
       print(f"Training Iteration {i}")
@@ -24,13 +23,13 @@ def test_network(network_class, args, input, scale, max_epochs, this_optimizer =
     network.train(
         sounds[0:test_data_start], 
         max_epochs, 
-        test_data_start, 
+        batch_size=min(1000, test_data_start), 
         graph=(not histogram and loss_graph), 
-        learning_rate=0.001, 
+        learning_rate=0.005, 
         print_epochs=(not histogram ), 
-        test_data=sounds[test_data_start:] if test_data else None
+        test_data=sounds[test_data_start:] if test_data else None,
       )
-    activation_name = network.activation.__name__
+    last_network = network
 
     if not histogram:
       print(f"test input:\n {sounds[0]/scale}")
@@ -60,9 +59,11 @@ def test_network(network_class, args, input, scale, max_epochs, this_optimizer =
     ax: Any = ax
     n_bins = 20
 
-    plt.title(f"Training Histogram, Optimizer={this_optimizer.__name__}, Activation={activation_name}, nan count: {notANumberCount}")
+    plt.title(f"Training Histogram, Optimizer={this_optimizer.__name__}, Activation={last_network.activation.__name__}, nan count: {notANumberCount}")
     ax.hist(losses, bins=n_bins)
     plt.show()
+
+  return last_network
 
 def test_vae(input, scale, max_epochs, layers, this_optimizer = Adam, loss_graph = False, histogram: bool = False, histogram_trials = 0, test_data = False):
   encoder_layers = layers[:math.ceil(len(layers)/2)]
@@ -72,18 +73,18 @@ def test_vae(input, scale, max_epochs, layers, this_optimizer = Adam, loss_graph
       "decoder_layers": decoder_layers, 
       "optimizer": this_optimizer(),
     }
-  test_network(VAE, args, input, scale, max_epochs, this_optimizer, loss_graph, histogram, histogram_trials, test_data)
+  return test_network(VAE, args, input, scale, max_epochs, this_optimizer, loss_graph, histogram, histogram_trials, test_data)
 
 def test_base(input, scale, max_epochs, layers, this_optimizer = Adam, loss_graph = False, histogram: bool = False, histogram_trials = 0, test_data = False):
     args: Dict = {
         "layers": layers, 
         "optimizer": this_optimizer(),
       }
-    test_network(BaseNetwork, args, input, scale, max_epochs, this_optimizer, loss_graph, histogram, histogram_trials, test_data)
+    return test_network(BaseNetwork, args, input, scale, max_epochs, this_optimizer, loss_graph, histogram, histogram_trials, test_data)
 
 def test_autoencoder(input, scale, max_epochs, layers, this_optimizer = Adam, loss_graph = False, histogram: bool = False, histogram_trials = 0, test_data = False):
   args: Dict = {
       "layers": layers, 
       "optimizer": this_optimizer(),
     }
-  test_network(AutoEncoder, args, input, scale, max_epochs, this_optimizer, loss_graph, histogram, histogram_trials, test_data)
+  return test_network(AutoEncoder, args, input, scale, max_epochs, this_optimizer, loss_graph, histogram, histogram_trials, test_data)

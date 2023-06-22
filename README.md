@@ -23,7 +23,8 @@
   - Use S<sub>0</sub> and G(P) as the two possible inputs to the discriminator.
   - Use the value from the discriminator to train VAE/Generator
   - Generate a full latent space distribution using the training data
-    - $\mu = \frac{\sum(\mu_i)}{n}$
+    - $\mu = \frac{\sum\mu_i}{n}$
+
     - $\sigma = \sqrt{\sum{\sigma_i^2}}$
 - Train From User Input
   - Add a new neural network layer or two to the generator.
