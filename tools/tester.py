@@ -37,7 +37,7 @@ class Tester:
     if init_call:
       self.last_x = x
       self.last_y = y
-    if isinstance(x, (float, int, np.integer)):
+    if isinstance(x, (float, int, np.integer, np.bool_)):
       return self.num_equal(x,y,err)
     elif isinstance(x, (np.ndarray, List, Tuple)):
       return self.arr_equal(x,y,err)
@@ -45,7 +45,7 @@ class Tester:
       raise Exception(f"Unrecognized Type: {type(x)}")
 
 
-  def num_equal(self, x: float|int|np.integer, y: float|int|np.integer, err: float=0.001):
+  def num_equal(self, x: float|int|np.integer|np.bool_, y: float|int|np.integer, err: float=0.001):
     if not abs(x-y)<err:
       print(f"expected {y}, got {x}")
     return abs(x-y)<err

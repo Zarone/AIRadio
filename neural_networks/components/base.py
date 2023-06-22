@@ -59,12 +59,22 @@ class BaseNetwork:
       self.biases[i] = config.rng.uniform(min,max,(layers[i+1], 1))
       self.weights[i] = config.rng.uniform(min,max,(layers[i+1], layers[i]))
 
-  def feedforward_full(self, input: np.ndarray) -> Tuple[List, List]:
+  def feedforward_full(self, input_val: np.ndarray) -> Tuple[List, List]:
+    """This functions takes an input and returns the z values 
+    and activations of the network after a feedforward.
+
+    :param input_val should be a numpy array where the first element is the input, \
+and the second element is the true output.
+    """
+
+    if len(input_val.shape) == 1:
+      raise Exception(f"function expected input_val shape of (n,2), received shape of {input_val.shape}")
+
     num_layers = len(self.layers) - 1
     activations: List = [None] * num_layers
     zs: List = [None] * num_layers
   
-    last_activations = input[0]
+    last_activations = input_val[0]
     for i, _ in enumerate(activations):
       zs[i], activations[i] = self.feedforward_layer(i, last_activations)
       last_activations = activations[i]
@@ -90,6 +100,9 @@ class BaseNetwork:
     return (z, activation_function(z))
 
   def loss(self, y_true, y_pred):
+    if len(y_true.shape) == 1:
+      raise Exception(f"function expected input_val shape of (n,2), received shape of {y_true.shape}")
+
     n = y_true[1].shape[0]  # Number of samples
 
     # Reconstruction loss
@@ -205,6 +218,10 @@ class BaseNetwork:
     self.weights -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient)
     self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient)
     return (reconstruction_loss/len(batch),)
+
+  @staticmethod
+  def format_unsupervised_input(input):
+    return np.array([input, input])
 
   def save_to_file(self, file: str):
     np.savez(file, weights=self.weights, biases=self.biases)

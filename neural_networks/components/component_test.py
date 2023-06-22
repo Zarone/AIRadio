@@ -63,15 +63,27 @@ def component_test(Tester):
   inputs = np.array([3, 2])
   expected_zs = [np.array([8, 16])]
   expected_activations = [np.array([8, 16])]
-  module.tester("Network Feedforward 2", module.eq(network.feedforward_full(inputs), (expected_zs, expected_activations)))
+  module.tester(
+      "Network Feedforward 2", 
+      module.eq(
+        network.feedforward_full( network.format_unsupervised_input(inputs) ),
+        (expected_zs, expected_activations)
+        )
+      )
 
   # Test for feedforward
   inputs = np.array([3, 2])
   expected_output = np.array([8, 16])
-  module.tester("Network Feedforward 3", module.eq(network.feedforward(inputs), expected_output))
+  module.tester(
+      "Network Feedforward 3", 
+      module.eq(
+        network.feedforward( network.format_unsupervised_input(inputs) ), 
+        expected_output
+        )
+      )
 
   # Test for loss function
   y_true = np.array([1, 0])
   y_pred = np.array([0.2, 0.7])
   expected_loss = np.sum(np.square(y_true - y_pred)) / len(y_true)
-  module.tester("Network Loss", module.eq(network.loss(y_true, y_pred), (expected_loss,)))
+  module.tester("Network Loss", module.eq(network.loss(network.format_unsupervised_input(y_true), y_pred), (expected_loss,)))
