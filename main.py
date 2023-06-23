@@ -1,33 +1,48 @@
-from neural_networks.autoencoder.autoencoder import AutoEncoder
 from tools.network_tester import *
 import audio_parsing.audio_parsing as audio
-import numpy as np
 from tools.profile import ProfileWrapper
+from compression.compression import compress, COMPRESSION_1_INFO, COMPRESSION_2_INFO, decompress, train_compressor
+from neural_networks.vae.recurrent_vae.recurrent_vae import RecurrentVAE
 
-MAX = 899000
-INIT_CHUNK_SIZE = 10
-CHUNKS = MAX//INIT_CHUNK_SIZE
-COMPRESSION_1_CHUNK_SIZE = 1
-sounds, names = audio.get_raw_data(20, 10)
+AMPLITUDE_SCALE = 10
+
+MAX_AMPLITUDES = 899000
+# MAX_AMPLITUDES = 1000
+
+sounds, names = audio.get_raw_data(100, MAX_AMPLITUDES, AMPLITUDE_SCALE)
 
 # This is just a way to test the sound data
-# audio.play_random_sound(sounds, names)
+song = audio.play_random_sound(sounds, names, AMPLITUDE_SCALE)
 
 song_length = len(sounds[0])
 print(f"Current Number of Songs: {len(sounds)}")
-print(f"Current Size of Each Song: {len(sounds[0])}")
+print(f"Current Size of Song: {len(song)}")
 
-layers = (song_length, 40, 20, COMPRESSION_1_CHUNK_SIZE, 20, 40, song_length)
+# train_compressor(sounds, COMPRESSION_1_INFO, 1000)
 
-ae = AutoEncoder(layers)
-ae.train(sounds, max_epochs=100, batch_size=20, learning_rate=0.005)
-# ae.init_from_file("CompressionParameters.npz")
+compressed, ae1 = compress(song, COMPRESSION_1_INFO)
+print(f"Current Size of Song: {len(compressed)}")
 
-single_compressed_chunks = np.zeros((CHUNKS*COMPRESSION_1_CHUNK_SIZE, 1))
-print("single_compressed_chunks", single_compressed_chunks)
-for i in range(CHUNKS):
-  print("section", single_compressed_chunks[i*COMPRESSION_1_CHUNK_SIZE:(i+1)*COMPRESSION_1_CHUNK_SIZE])
-  print("encoded sections", ae.encode(sounds[0])[1][-1])
-  single_compressed_chunks[i*COMPRESSION_1_CHUNK_SIZE:(i+1)*COMPRESSION_1_CHUNK_SIZE] = ae.encode(sounds[0])[1][-1]
+  # compressed, ae2 = compress(compressed, COMPRESSION_2_INFO)
+  # print(f"Current Size of Song 0: {len(compressed)}")
 
-# network.save_to_file("CompressionParameters.npz")
+# AMPLITUDES_PER_ITER = 5
+# ITERATIONS = len(compressed)//AMPLITUDES_PER_ITER
+
+# print("AMPLITUDES_PER_ITER", AMPLITUDES_PER_ITER)
+# print("ITERATIONS", ITERATIONS)
+
+  # decompressed = decompress(ae2, compressed, COMPRESSION_2_INFO)
+  # print(f"Current Size of Song 0: {len(decompressed)}")
+
+decompressed = decompress(ae1, compressed, COMPRESSION_1_INFO)
+print(f"Current Size of Song: {len(decompressed)}")
+
+audio.play_audio(decompressed, AMPLITUDE_SCALE)
+# print("song", song)
+# print("decompressed", decompressed)
+
+audio.plot_audio_comparison(song, decompressed)
+
+# network = RecurrentVAE((5, 4, 3, 3), (3, 3, 4, 5))
+# network.train(sounds)

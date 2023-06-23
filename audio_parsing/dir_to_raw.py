@@ -2,11 +2,10 @@ import librosa
 import numpy as np
 
 SAMPLING_RATE: float = 30000
-SCALE_FACTOR = 1E1
 
 i = 0
 
-def get_raw_audio(location: str, max_elements) -> np.ndarray:
+def get_raw_audio(location: str, max_elements: int, scale: float) -> np.ndarray:
   try:
     audio_data, _ = librosa.load(location, sr=SAMPLING_RATE)
   except:
@@ -18,7 +17,7 @@ def get_raw_audio(location: str, max_elements) -> np.ndarray:
   mean = np.mean(audio)
   current_std = np.std(audio) + epsilon_naught 
 
-  scaled_audio = (audio - mean) * (SCALE_FACTOR/current_std)
+  scaled_audio = (audio - mean) * (scale/current_std)
   global i
   print(f"Loaded audio from {location}, element {i}")
   i+=1

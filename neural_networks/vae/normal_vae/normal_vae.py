@@ -1,9 +1,10 @@
 from neural_networks.components.optimizer.adam import Adam
 from neural_networks.components.base import BaseNetwork
 import numpy as np
+import numpy.typing as npt
 import neural_networks.components.config as config
 from neural_networks.components.activations import *
-from typing import Tuple, Callable, Any
+from typing import Tuple, Callable, Any, List
 import matplotlib.pyplot as plt
 import math
 from neural_networks.components.optimizer.optimizer import Optimizer
@@ -80,20 +81,21 @@ class VAE(BaseNetwork):
       index+=1
 
 
-  def loss(self, y_true, y_pred, mu=0, log_var=0):
+  def loss(self, y_true, y_pred, mu=np.array([0.0]), log_var=np.array([0.0])):
     n = y_true.shape[0]  # Number of samples
 
     # Reconstruction loss
     reconstruction_loss = np.sum(np.square(y_true - y_pred)) / n
 
     # Regularization term - KL divergence
-    kl_loss = -0.5 * np.sum(1 + log_var - np.square(mu) - np.exp(log_var)) / n
+    kl_loss = -0.5 * np.sum(1 + log_var - np.square(mu) - np.exp(log_var)) / len(mu)
 
     return (reconstruction_loss, kl_loss)
 
 
-  def encode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    activations = np.array([None] * (len(self.encoder_layers) - 1))
+  def encode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray[float, Any], np.ndarray[float, Any]]:
+    
+    activations = np.array([None] * (len(self.encoder_layers) - 1), dtype=npt.NDArray[np.float256])
     z_values = np.array([None] * (len(self.encoder_layers) - 1))
 
     i = 0

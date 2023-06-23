@@ -4,6 +4,7 @@ from neural_networks.components.optimizer.optimizer import Optimizer
 from neural_networks.components.optimizer.adam import Adam
 from typing import Callable, Tuple, List
 import numpy as np
+import numpy.typing as npt
 
 class AutoEncoder(BaseNetwork):
 
@@ -28,10 +29,10 @@ class AutoEncoder(BaseNetwork):
 
   def train(
     self,
-    _training_data: np.ndarray, 
+    _training_data: npt.ArrayLike, 
     max_epochs: int, 
     batch_size:int=100, 
-    test_data: (np.ndarray|None)=None, 
+    test_data: (npt.ArrayLike|None)=None, 
     learning_rate=0.05, 
     graph=False, 
     print_epochs=True

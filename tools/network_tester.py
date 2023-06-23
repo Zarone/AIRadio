@@ -6,7 +6,7 @@ from neural_networks.components.optimizer.adam import Adam
 import math
 from typing import Any, Dict
 
-def test_network(network_class, args, input, scale, max_epochs, this_optimizer = Adam, loss_graph = False, histogram: bool = False, histogram_trials = 0, test_data = False):
+def test_network(network_class, args, input, max_epochs, this_optimizer = Adam, loss_graph = False, histogram: bool = False, histogram_trials = 0, test_data = False):
   sounds = input
   losses = []
   notANumberCount = 0
@@ -32,17 +32,17 @@ def test_network(network_class, args, input, scale, max_epochs, this_optimizer =
     last_network = network
 
     if not histogram:
-      print(f"test input:\n {sounds[0]/scale}")
+      print(f"test input:\n {sounds[0]}")
 
     decoded = network.feedforward(sounds[0])
 
     if not histogram:
-      print(f"decoded:\n {decoded/scale}")
+      print(f"decoded:\n {decoded}")
 
     if not histogram:
-      print(f"off by:\n {(decoded-sounds[0])/scale}")
+      print(f"off by:\n {(decoded-sounds[0])}")
 
-    loss = network.loss(sounds[0]/scale, decoded/scale)
+    loss = network.loss(sounds[0], decoded)
     r_loss = loss[0]
     print("reconstruction loss", r_loss)
 
@@ -55,7 +55,7 @@ def test_network(network_class, args, input, scale, max_epochs, this_optimizer =
       losses.append(r_loss)
 
   if histogram:
-    fig, ax = plt.subplots()
+    _, ax = plt.subplots()
     ax: Any = ax
     n_bins = 20
 
@@ -65,7 +65,7 @@ def test_network(network_class, args, input, scale, max_epochs, this_optimizer =
 
   return last_network
 
-def test_vae(input, scale, max_epochs, layers, this_optimizer = Adam, loss_graph = False, histogram: bool = False, histogram_trials = 0, test_data = False):
+def test_vae(input, max_epochs, layers, this_optimizer = Adam, loss_graph = False, histogram: bool = False, histogram_trials = 0, test_data = False):
   encoder_layers = layers[:math.ceil(len(layers)/2)]
   decoder_layers = layers[math.floor(len(layers)/2):]
   args: Dict = {
@@ -73,18 +73,18 @@ def test_vae(input, scale, max_epochs, layers, this_optimizer = Adam, loss_graph
       "decoder_layers": decoder_layers, 
       "optimizer": this_optimizer(),
     }
-  return test_network(VAE, args, input, scale, max_epochs, this_optimizer, loss_graph, histogram, histogram_trials, test_data)
+  return test_network(VAE, args, input, max_epochs, this_optimizer, loss_graph, histogram, histogram_trials, test_data)
 
-def test_base(input, scale, max_epochs, layers, this_optimizer = Adam, loss_graph = False, histogram: bool = False, histogram_trials = 0, test_data = False):
+def test_base(input, max_epochs, layers, this_optimizer = Adam, loss_graph = False, histogram: bool = False, histogram_trials = 0, test_data = False):
     args: Dict = {
         "layers": layers, 
         "optimizer": this_optimizer(),
       }
-    return test_network(BaseNetwork, args, input, scale, max_epochs, this_optimizer, loss_graph, histogram, histogram_trials, test_data)
+    return test_network(BaseNetwork, args, input, max_epochs, this_optimizer, loss_graph, histogram, histogram_trials, test_data)
 
-def test_autoencoder(input, scale, max_epochs, layers, this_optimizer = Adam, loss_graph = False, histogram: bool = False, histogram_trials = 0, test_data = False):
+def test_autoencoder(input, max_epochs, layers, this_optimizer = Adam, loss_graph = False, histogram: bool = False, histogram_trials = 0, test_data = False):
   args: Dict = {
       "layers": layers, 
       "optimizer": this_optimizer(),
     }
-  return test_network(AutoEncoder, args, input, scale, max_epochs, this_optimizer, loss_graph, histogram, histogram_trials, test_data)
+  return test_network(AutoEncoder, args, input, max_epochs, this_optimizer, loss_graph, histogram, histogram_trials, test_data)
