@@ -10,14 +10,13 @@ import matplotlib.pyplot as plt
 class BaseNetwork:
 
   """
-  Parameters
-  ----------
-  layers 
-    This defines the number of nodes in each activation layer (including input space and latent space)
-  activation
-    This is the primary activation function which the neural network uses
-  activation_exceptions
-    This is a dictionary where the key equals the layer where the exception occurs, and the key is the replacement activation function
+  :param layers This defines the number of nodes in each \
+activation layer (including input space and latent space)
+  :param activation This is the primary activation function \
+which the neural network uses
+  :param activation_exceptions This is a dictionary where the \
+key equals the layer where the exception occurs, and \
+the key is the replacement activation function
   """
   def __init__(
       self, 
@@ -45,6 +44,11 @@ class BaseNetwork:
     # These are used in training
     self.weight_gradient = None
     self.bias_gradient = None
+
+  def get_init_param_minmax(self, index):
+    max = math.sqrt(2/self.layers[index])
+    min = -max
+    return min, max
 
   def init_coefficients(self, layers: Tuple[int, ...]) -> None:
     self.layers = layers

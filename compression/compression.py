@@ -3,17 +3,10 @@ import numpy as np
 from neural_networks.autoencoder.autoencoder import AutoEncoder
 
 COMPRESSION_1_INFO = {
-      "previous_chunk_size": 1000,
-      "chunk_size": 250,
-      "layers": (1000, 400, 250, 400, 1000),
+      "previous_chunk_size": 100,
+      "chunk_size": 45,
+      "layers": (100, 60, 45, 60, 100),
       "file": "Compression1Parameters.npz"
-    }
-
-COMPRESSION_2_INFO = {
-      "previous_chunk_size": 1000,
-      "chunk_size": 250,
-      "layers": (1000, 400, 250, 400, 1000),
-      "file": "Compression2Parameters.npz"
     }
 
 def train_compressor(sounds: List, details: Dict, training_data_count: int):
@@ -28,7 +21,7 @@ def train_compressor(sounds: List, details: Dict, training_data_count: int):
       ]
 
   ae = AutoEncoder(details["layers"])
-  ae.train(sequences, max_epochs=200, batch_size=min(100, training_data_count), learning_rate=0.001)
+  ae.train(sequences, max_epochs=1000, batch_size=min(2500, training_data_count), learning_rate=0.05)
   ae.save_to_file(details["file"])
 
 def compress(audio: np.ndarray, details: Dict):

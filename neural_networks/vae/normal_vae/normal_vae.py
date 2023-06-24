@@ -21,8 +21,6 @@ class VAE(BaseNetwork):
       activation_exceptions: dict[int, Callable]={},
       optimizer: Optimizer = Adam()
   ) -> None:
-
-
     if (encoder_layers[-1] != decoder_layers[0]): 
       raise Exception("Initialized VAE with inconsistent latent space size")
 
@@ -93,8 +91,12 @@ class VAE(BaseNetwork):
     return (reconstruction_loss, kl_loss)
 
 
-  def encode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray[float, Any], np.ndarray[float, Any]]:
-    
+  def encode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """This function takes an input vector and returns a \
+latent space vector.
+
+   :param input An (N, 1) vector of floats. 
+    """
     activations = np.array([None] * (len(self.encoder_layers) - 1), dtype=npt.NDArray[np.float256])
     z_values = np.array([None] * (len(self.encoder_layers) - 1))
 
