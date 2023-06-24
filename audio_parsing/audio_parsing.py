@@ -36,8 +36,10 @@ def plot_audio_comparison(audio_real, audio_gen):
 
   axs[0].plot(audio1, "blue", label="Real Audio")
   axs[0].grid()
+  axs[0].legend()
   axs[1].plot(audio2, "red", label="Generated Audio")
   axs[1].grid()
+  axs[1].legend()
 
   plt.show()
 

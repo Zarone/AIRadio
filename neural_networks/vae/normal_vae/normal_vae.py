@@ -19,16 +19,26 @@ class VAE(BaseNetwork):
       activation=leaky_relu, 
       activation_derivative=leaky_relu_derivative, 
       activation_exceptions: dict[int, Callable]={},
+      activation_derivative_exceptions: dict[int, Callable]={},
       optimizer: Optimizer = Adam()
   ) -> None:
     if (encoder_layers[-1] != decoder_layers[0]): 
       raise Exception("Initialized VAE with inconsistent latent space size")
 
+    len_layers = len(encoder_layers) + len(decoder_layers) - 1
+
     self.optimizer = optimizer
     self.activation = activation
     self.activation_derivative = activation_derivative
     self.activation_exceptions = activation_exceptions
+    self.activation_derivative_exceptions = activation_derivative_exceptions
     self.init_coefficients(encoder_layers, decoder_layers)
+
+    if (activation_exceptions.get(len_layers-1, None)) is None:
+      self.activation_exceptions[len_layers-1] = linear
+
+    if (activation_derivative_exceptions.get(len_layers-1, None)) is None:
+      self.activation_derivative_exceptions[len_layers-1] = linear_derivative
 
     self.weight_gradient = None
     self.bias_gradient = None

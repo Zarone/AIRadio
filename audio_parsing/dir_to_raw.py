@@ -21,9 +21,6 @@ def get_raw_audio(location: str, max_elements: int, scale: float) -> np.ndarray:
   global i
   print(f"Loaded audio from {location}, element {i}")
 
-  if not len(scaled_audio) == max_elements:
-    raise Exception(f"element {i} from location {location} failed to load")
-
   i+=1
 
   return scaled_audio

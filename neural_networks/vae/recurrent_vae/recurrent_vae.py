@@ -13,16 +13,16 @@ class RecurrentVAE(VAE):
 
   def __init__(
       self, 
-      hidden_layer_size: int,
       encoder_layers: Tuple[int, ...], 
       decoder_layers: Tuple[int, ...], 
       activation=leaky_relu, 
       activation_derivative=leaky_relu_derivative, 
       activation_exceptions: dict[int, Callable]={},
+      activation_derivative_exceptions: dict[int, Callable]={},
       optimizer: Optimizer = Adam()
   ) -> None:
-    self.hidden_layer_size = hidden_layer_size
-    super().__init__(encoder_layers, decoder_layers, activation, activation_derivative, activation_exceptions, optimizer)
+    self.hidden_state_size = encoder_layers[-1]
+    super().__init__(encoder_layers, decoder_layers, activation, activation_derivative, activation_exceptions, activation_derivative_exceptions, optimizer)
 
   def init_coefficients(self, e_layers: Tuple[int, ...], d_layers: Tuple[int, ...]) -> None:
     self.encoder_layers = e_layers
@@ -39,9 +39,10 @@ class RecurrentVAE(VAE):
     # Input to first hidden layer (Includes the fact that
     # the hidden state is passed into the first hidden layer
     # in the encoder)
-    min, max = self.get_init_param_minmax(index)
+    max = math.sqrt(2 / e_layers[index])
+    min = -max
     self.biases[index] = config.rng.uniform(min, max, (e_layers[index+1], 1))
-    self.weights[index] = config.rng.uniform(min, max, (e_layers[index+1], e_layers[index]+self.hidden_layer_size))
+    self.weights[index] = config.rng.uniform(min, max, (e_layers[index+1], e_layers[index]+self.hidden_state_size))
     index+=1
 
     # Encoder layers
@@ -78,7 +79,15 @@ class RecurrentVAE(VAE):
       self.weights[index] = config.rng.uniform(min, max, (d_layers[index+2-len(e_layers)], d_layers[index+1-len(e_layers)]))
       index+=1
 
-  def encode(self, input_value: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+  def get_time_seperated_data(self, input_data):
+    input_layer_size = self.encoder_layers[0]
+    input_data_size = input_data[0].shape[0]
+
+    if input_data_size % input_layer_size != 0:
+      raise Exception("Input data cannot be divided evenly into input layer")
+    return np.array([data_point.reshape(input_data_size//input_layer_size,input_layer_size,1) for data_point in input_data])
+
+  def encode(self, input_value: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """This function takes an input vector and returns a \
 latent space vector.
 
@@ -87,36 +96,31 @@ the size of the input layer and M is the number of \
 iterations in the recurrent network.
     """
 
-    # P represents the iteration
-    # Q represents the layer
-    P = input_value.shape[0]
-    Q = len(self.encoder_layers) - 1
+    iterations = input_value.shape[0]
+    latent_size = self.encoder_layers[-1]
 
-    activations = np.empty([P, Q], dtype=np.ndarray)
-    z_values = np.empty([P, Q], dtype=np.ndarray)
+    activations = np.empty([iterations, latent_size], dtype=np.ndarray)
+    z_values = np.empty([iterations, latent_size], dtype=np.ndarray)
+    epsilon = np.empty([iterations-1, self.hidden_state_size, 1], dtype=np.ndarray)
 
-    i = 0
+    last_activations = np.concatenate( (input_value[0], np.empty( (self.hidden_state_size, 1) )) )
+    for iter in range(0, iterations):
+      for layer in range(0, len(self.encoder_layers)-1):
+        z_values[iter][layer], activations[iter][layer] = self.feedforward_layer(layer, last_activations)
+        last_activations = activations[iter][layer]
 
-    for _ in range(0, len(activations)-1):
-      last_activations = input if i==0 else activations[i-1]
+      if iter != iterations-1:
+        new_hidden_state , epsilon[iter] = self.gen(activations[iter][-1][0:self.hidden_state_size], activations[iter][-1][self.hidden_state_size:self.hidden_state_size*2])
 
-      z_values[i], activations[i] = self.feedforward_layer(i, last_activations)
-      i+=1
- 
-    last_activations = input if i==0 else activations[-2]
-
-    # z_{i} = w * a_{i-1} + b
-    z_values[i] = np.matmul(self.weights[i], last_activations) + self.biases[i]
-
-    activations[i] = z_values[i]
-
-    parameters_count = len(activations[i])//2
+        last_activations = np.concatenate( (input_value[iter+1], new_hidden_state) )
+    parameters_count = len(activations[-1][-1])//2
 
     return (
       z_values,
       activations,
-      activations[-1][:parameters_count], 
-      activations[-1][parameters_count:parameters_count*2]
+      activations[-1][-1][:parameters_count], 
+      activations[-1][-1][parameters_count:parameters_count*2],
+      epsilon
     )
 
 
