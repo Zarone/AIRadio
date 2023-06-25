@@ -10,7 +10,7 @@ AMPLITUDE_SCALE = 10
 # MAX_AMPLITUDES = -1
 MAX_AMPLITUDES = 10
 
-sounds, names = audio.get_raw_data(5, MAX_AMPLITUDES, AMPLITUDE_SCALE)
+# sounds, names = audio.get_raw_data(5, MAX_AMPLITUDES, AMPLITUDE_SCALE)
 
 # # This is just a way to test the sound data
 # song = audio.play_random_sound(sounds, names, AMPLITUDE_SCALE)
@@ -31,12 +31,12 @@ sounds, names = audio.get_raw_data(5, MAX_AMPLITUDES, AMPLITUDE_SCALE)
 
 # audio.plot_audio_comparison(song, decompressed)
 
-network = RecurrentVAE((5, 4, 3, 3), (3, 3, 4, 5))
-time_seperated_sounds: np.ndarray = network.get_time_seperated_data(sounds)
-encoded = network.encode(time_seperated_sounds[0])
-print("encoded[0]", encoded[0])
-print("encoded[1]", encoded[1])
-print("encoded[2]", encoded[2])
-print("encoded[3]", encoded[3])
-print("encoded[4]", encoded[4])
+# network = RecurrentVAE((5, 4, 3, 3), (3, 3, 4, 5))
+# time_seperated_sounds: np.ndarray = network.get_time_seperated_data(sounds)
+# encoded = network.encode(time_seperated_sounds[0])
+# print("encoded[0]", encoded[0])
+# print("encoded[1]", encoded[1])
+# print("encoded[2]", encoded[2])
+# print("encoded[3]", encoded[3])
+# print("encoded[4]", encoded[4])
 # network.train(sounds)

@@ -47,10 +47,11 @@ class Tester:
 
   def num_equal(self, x: float|int|np.integer|np.bool_, y: float|int|np.integer, err: float=0.001):
     if not abs(x-y)<err:
-      print(f"expected {y}, got {x}")
+      print(f"Expected {y}, got {x}")
     return abs(x-y)<err
 
   def arr_equal(self, x: np.ndarray|List|Tuple, y: np.ndarray|List|Tuple, err: float=0.001):
+    if len(x) != len(y): return False
     for i, _ in enumerate(x):
       if not self.eq(x[i], y[i], err, False):
         return False
@@ -61,5 +62,5 @@ class Tester:
       print(f"{GREEN}{INDENT}Test {name} Passed{END_FORMAT}")
     else:
       print(f"{RED}{INDENT}Test {name} Failed{END_FORMAT}")
-      print(f"{RED}  {INDENT}Expected {self.test_data[index][0]}, Got {self.test_data[index][1]}")
+      print(f"{RED}  {INDENT}Expected {self.test_data[index][1]}, Got {self.test_data[index][0]}")
 

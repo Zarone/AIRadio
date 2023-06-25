@@ -107,8 +107,12 @@ latent space vector.
 
    :param input An (N, 1) vector of floats. 
     """
-    activations = np.array([None] * (len(self.encoder_layers) - 1), dtype=npt.NDArray[np.float256])
-    z_values = np.array([None] * (len(self.encoder_layers) - 1))
+    
+    if len(input.shape) != 2 or input.shape[1] != 1:
+      raise Exception(f"Expected shape (N, 1), but got shape {input.shape}")
+
+    activations: np.ndarray = np.array([None] * (len(self.encoder_layers) - 1))
+    z_values: np.ndarray = np.array([None] * (len(self.encoder_layers) - 1))
 
     i = 0
 
@@ -160,7 +164,7 @@ latent space vector.
 
     return (z_values, activations)
 
-  def feedforward(self, input: np.ndarray):
+  def feedforward(self, input: np.ndarray) -> np.ndarray:
     _, _, mu, log_variance = self.encode(input)
     generated, _ = self.gen(mu, log_variance)
     return self.decode(generated)[1][-1]
