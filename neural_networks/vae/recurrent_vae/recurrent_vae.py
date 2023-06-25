@@ -80,6 +80,9 @@ class RecurrentVAE(VAE):
       index+=1
 
   def get_time_seperated_data(self, input_data):
+    """This function divides the input data into evenly sized vectors\
+with one for each time step.
+    """
     input_layer_size = self.encoder_layers[0]
     input_data_size = input_data[0].shape[0]
 
@@ -91,7 +94,7 @@ class RecurrentVAE(VAE):
     """This function takes an input vector and returns a \
 latent space vector.
 
-   :param input An (M, N) vector of floats, where N is \
+   :param input_value An (M, N) vector of floats, where N is \
 the size of the input layer and M is the number of \
 iterations in the recurrent network.
     """
@@ -123,4 +126,33 @@ iterations in the recurrent network.
       epsilon
     )
 
+  def decode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """This function takes an (N, 1) vector representing the latent\
+space representation.
+
+    :param input
+    """
+    activations = np.array([None] * (len(self.decoder_layers) - 1))
+    z_values = np.array([None] * (len(self.decoder_layers) - 1))
+
+    i = 0
+
+    for _ in range(0, len(activations)-1):
+      last_activations = input if i==0 else activations[i-1]
+      
+      coef_index = i+len(self.encoder_layers)-1
+
+      z_values[i], activations[i] = self.feedforward_layer(coef_index, last_activations)
+      i+=1
+
+    last_activations = input if i==0 else activations[-2]
+
+    coef_index = i+len(self.encoder_layers)-1
+
+    # z_{i} = w * a_{i-1} + b
+    z_values[i] = np.matmul(self.weights[coef_index], last_activations) + self.biases[coef_index]
+
+    activations[i] = z_values[i]
+
+    return (z_values, activations)
 
