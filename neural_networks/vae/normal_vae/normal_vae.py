@@ -22,8 +22,7 @@ class VAE(BaseNetwork):
       activation_derivative_exceptions: dict[int, Callable]={},
       optimizer: Optimizer = Adam()
   ) -> None:
-    if (encoder_layers[-1] != decoder_layers[0]): 
-      raise Exception("Initialized VAE with inconsistent latent space size")
+    assert encoder_layers[-1] == decoder_layers[0], "Initialized VAE with inconsistent latent space size"
 
     len_layers = len(encoder_layers) + len(decoder_layers) - 1
 
@@ -108,8 +107,7 @@ latent space vector.
    :param input An (N, 1) vector of floats. 
     """
     
-    if len(input.shape) != 2 or input.shape[1] != 1:
-      raise Exception(f"Expected shape (N, 1), but got shape {input.shape}")
+    assert len(input.shape) == 2 and input.shape[1] == 1, f"Expected shape (N, 1), but got shape {input.shape}"
 
     activations: np.ndarray = np.array([None] * (len(self.encoder_layers) - 1))
     z_values: np.ndarray = np.array([None] * (len(self.encoder_layers) - 1))
@@ -214,8 +212,7 @@ latent space vector.
     training_data = np.array(_training_data, copy=True)
     per_epoch = len(training_data) // batch_size
 
-    if per_epoch == 0:
-      raise Exception("Batch Size greater than Data Set")
+    assert per_epoch != 0, "Batch Size greater than Data Set"
     for i in range(max_epochs):
       np.random.shuffle(training_data)
       for j in range(per_epoch):
@@ -257,8 +254,9 @@ latent space vector.
 
   def training_step(self, batch, learning_rate, print_epochs):
     self.init_gradients()
-    if (self.weight_gradient is None or self.bias_gradient is None):
-      raise Exception("weight gradient not defined for some reason")
+
+    assert (not self.weight_gradient is None and not self.bias_gradient is None), "Weight gradient not defined for some reason"
+
     reconstruction_loss = 0
     kl_loss = 0
 

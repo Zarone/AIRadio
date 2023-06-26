@@ -85,8 +85,8 @@ with one for each time step.
     input_layer_size = self.encoder_layers[0]
     input_data_size = input_data[0].shape[0]
 
-    if input_data_size % input_layer_size != 0:
-      raise Exception("Input data cannot be divided evenly into input layer")
+    assert input_data_size % input_layer_size == 0, "Input data cannot be divided evenly into input layer"
+      
     return np.array([data_point.reshape(input_data_size//input_layer_size,input_layer_size,1) for data_point in input_data])
 
   def encode(self, input_value: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -137,8 +137,7 @@ space representation and returns all related z and activation values.
     :param input_value An (N, 1) vector representing the latent\
 space representation.
     """
-    if ( len(input_value.shape) != 2 or input_value.shape[1] != 1 ):
-      raise Exception(f"Expected (N, 1) sized input, received {input_value.shape}")
+    assert len(input_value.shape) == 2 and input_value.shape[1] == 1, f"Expected (N, 1) sized input, received {input_value.shape}"
 
     num_layers = len(self.decoder_layers)-1
     output_layer_size = self.decoder_layers[-1]

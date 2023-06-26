@@ -71,8 +71,7 @@ the key is the replacement activation function
 and the second element is the true output.
     """
 
-    if len(input_val.shape) == 1:
-      raise Exception(f"function expected input_val shape of (n,2), received shape of {input_val.shape}")
+    assert len(input_val.shape) != 1, f"function expected input_val shape of (n,2), received shape of {input_val.shape}"
 
     num_layers = len(self.layers) - 1
     activations: List = [None] * num_layers
@@ -104,8 +103,7 @@ and the second element is the true output.
     return (z, activation_function(z))
 
   def loss(self, y_true, y_pred):
-    if len(y_true.shape) == 1:
-      raise Exception(f"function expected input_val shape of (n,2), received shape of {y_true.shape}")
+    assert len(y_true.shape) != 1, f"function expected input_val shape of (n,2), received shape of {y_true.shape}"
 
     n = y_true[1].shape[0]  # Number of samples
 
@@ -146,8 +144,7 @@ and the second element is the true output.
 
     per_epoch = len(training_data) // batch_size
 
-    if per_epoch == 0:
-      raise Exception("Batch Size greater than Data Set")
+    assert per_epoch != 0, "Batch Size greater than Data Set"
     for i in range(max_epochs):
       np.random.shuffle(training_data)
       for j in range(per_epoch):
@@ -182,8 +179,9 @@ and the second element is the true output.
 
   def training_step(self, batch, learning_rate, print_epochs):
     self.init_gradients()
-    if (self.weight_gradient is None or self.bias_gradient is None):
-      raise Exception("weight gradient not defined for some reason")
+
+    assert (not self.weight_gradient is None and not self.bias_gradient is None), "Weight gradient not defined for some reason"
+
     reconstruction_loss = 0
 
     len_layers = len(self.layers)
