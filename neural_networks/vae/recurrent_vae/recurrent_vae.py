@@ -5,7 +5,6 @@ from neural_networks.components.activations import *
 from neural_networks.components.optimizer.adam import Adam
 from neural_networks.components.optimizer.optimizer import Optimizer
 import numpy as np
-import numpy.typing as npt
 import math
 from typing import Callable
 
@@ -99,11 +98,13 @@ the size of the input layer and M is the number of \
 iterations in the recurrent network.
     """
 
-    iterations = input_value.shape[0]
-    latent_size = self.encoder_layers[-1]
+    iterations: int = input_value.shape[0]
 
-    activations = np.empty([iterations, latent_size], dtype=np.ndarray)
-    z_values = np.empty([iterations, latent_size], dtype=np.ndarray)
+    # The number of layers in the encoder
+    num_layers: int = len(self.encoder_layers)
+
+    activations = np.empty([iterations, num_layers-1], dtype=np.ndarray)
+    z_values = np.empty([iterations, num_layers-1], dtype=np.ndarray)
     epsilon = np.empty([iterations-1, self.hidden_state_size, 1], dtype=np.ndarray)
 
     last_activations = np.concatenate( (input_value[0], np.empty( (self.hidden_state_size, 1) )) )
@@ -113,7 +114,10 @@ iterations in the recurrent network.
         last_activations = activations[iter][layer]
 
       if iter != iterations-1:
-        new_hidden_state , epsilon[iter] = self.gen(activations[iter][-1][0:self.hidden_state_size], activations[iter][-1][self.hidden_state_size:self.hidden_state_size*2])
+        new_hidden_state , epsilon[iter] = \
+            self.gen(
+                activations[iter][-1][0:self.hidden_state_size], activations[iter][-1][self.hidden_state_size:self.hidden_state_size*2]
+                )
 
         last_activations = np.concatenate( (input_value[iter+1], new_hidden_state) )
     parameters_count = len(activations[-1][-1])//2
@@ -126,33 +130,30 @@ iterations in the recurrent network.
       epsilon
     )
 
-  def decode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+  def decode(self, input_value: np.ndarray, iterations: int) -> Tuple[np.ndarray, np.ndarray]:
     """This function takes an (N, 1) vector representing the latent\
+space representation and returns all related z and activation values.
+
+    :param input_value An (N, 1) vector representing the latent\
 space representation.
-
-    :param input
     """
-    activations = np.array([None] * (len(self.decoder_layers) - 1))
-    z_values = np.array([None] * (len(self.decoder_layers) - 1))
+    if ( len(input_value.shape) != 2 or input_value.shape[1] != 1 ):
+      raise Exception(f"Expected (N, 1) sized input, received {input_value.shape}")
 
-    i = 0
+    num_layers = len(self.decoder_layers)-1
+    output_layer_size = self.decoder_layers[-1]
 
-    for _ in range(0, len(activations)-1):
-      last_activations = input if i==0 else activations[i-1]
-      
-      coef_index = i+len(self.encoder_layers)-1
+    activations: np.ndarray = np.empty([iterations, num_layers], dtype=np.ndarray)
+    z_values: np.ndarray = np.empty([iterations, num_layers], dtype=np.ndarray)
+    last_output = np.zeros( (output_layer_size, 1) )
+    last_activations: np.ndarray = np.concatenate( (input_value, last_output) )
 
-      z_values[i], activations[i] = self.feedforward_layer(coef_index, last_activations)
-      i+=1
-
-    last_activations = input if i==0 else activations[-2]
-
-    coef_index = i+len(self.encoder_layers)-1
-
-    # z_{i} = w * a_{i-1} + b
-    z_values[i] = np.matmul(self.weights[coef_index], last_activations) + self.biases[coef_index]
-
-    activations[i] = z_values[i]
+    for i in range(iterations):
+      for j in range(0, num_layers):
+        coef_index = j+len(self.encoder_layers)-1
+        z_values[i][j], activations[i][j] = self.feedforward_layer(coef_index, last_activations)
+        last_activations = activations[i][j]
+      last_activations = np.concatenate( (input_value, last_activations) )
 
     return (z_values, activations)
 
