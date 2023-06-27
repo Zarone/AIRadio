@@ -89,9 +89,9 @@ with one for each time step.
       
     return np.array([data_point.reshape(input_data_size//input_layer_size,input_layer_size,1) for data_point in input_data])
 
-  def encode(self, input_value: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """This function takes an input vector and returns a \
-latent space vector.
+  def _encode(self, input_value: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """This function takes an input vector and returns all \
+internally relevant variables after feedforward to latent space.
 
    :param input_value An (M, N) vector of floats, where N is \
 the size of the input layer and M is the number of \
@@ -115,7 +115,7 @@ iterations in the recurrent network.
 
       if iter != iterations-1:
         new_hidden_state , epsilon[iter] = \
-            self.gen(
+            self._gen(
                 activations[iter][-1][0:self.hidden_state_size], activations[iter][-1][self.hidden_state_size:self.hidden_state_size*2]
                 )
 
@@ -129,6 +129,18 @@ iterations in the recurrent network.
       activations[-1][-1][parameters_count:parameters_count*2],
       epsilon
     )
+
+  def encode(self, input_value: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """This function takes an input vector and returns mu and \
+log variance for the latent space.
+
+   :param input_value An (M, N) vector of floats, where N is \
+the size of the input layer and M is the number of \
+iterations in the recurrent network.
+    """
+    _, _, mu, logvar, _ = self._encode(input_value)
+    return (mu, logvar)
+
 
   def _decode(self, input_value: np.ndarray, iterations: int) -> Tuple[np.ndarray, np.ndarray]:
     """This function takes an (N, 1) vector representing the latent\

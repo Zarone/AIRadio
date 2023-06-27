@@ -66,7 +66,7 @@ def component_test(Tester):
   module.tester(
       "Network Feedforward 2", 
       module.eq(
-        network.feedforward_full( network.format_unsupervised_input(inputs) ),
+        network._feedforward( network.format_unsupervised_input(inputs) ),
         (expected_zs, expected_activations)
         )
       )

@@ -63,7 +63,7 @@ the key is the replacement activation function
       self.biases[i] = config.rng.uniform(min,max,(layers[i+1], 1))
       self.weights[i] = config.rng.uniform(min,max,(layers[i+1], layers[i]))
 
-  def feedforward_full(self, input_val: np.ndarray) -> Tuple[List, List]:
+  def _feedforward(self, input_val: np.ndarray) -> Tuple[List, List]:
     """This functions takes an input and returns the z values 
     and activations of the network after a feedforward.
 
@@ -85,7 +85,7 @@ and the second element is the true output.
     return (zs, activations)
 
   def feedforward(self, input):
-    return self.feedforward_full(input)[1][-1]
+    return self._feedforward(input)[1][-1]
 
   def feedforward_layer(self, i: int, last_activations: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     # z_{i} = w * a_{i-1} + b

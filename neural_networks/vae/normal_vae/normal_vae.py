@@ -1,14 +1,12 @@
 from neural_networks.components.optimizer.adam import Adam
 from neural_networks.components.base import BaseNetwork
 import numpy as np
-import numpy.typing as npt
 import neural_networks.components.config as config
 from neural_networks.components.activations import *
-from typing import Tuple, Callable, Any, List
+from typing import Tuple, Callable, Any
 import matplotlib.pyplot as plt
 import math
 from neural_networks.components.optimizer.optimizer import Optimizer
-from neural_networks.components.optimizer.SGD import SGD
 
 class VAE(BaseNetwork):
   
@@ -100,9 +98,9 @@ class VAE(BaseNetwork):
     return (reconstruction_loss, kl_loss)
 
 
-  def encode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """This function takes an input vector and returns a \
-latent space vector.
+  def _encode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """This function takes an input vector and returns all \
+internally relevant variables after feedforward to latent space.
 
    :param input An (N, 1) vector of floats. 
     """
@@ -136,8 +134,24 @@ latent space vector.
       activations[-1][parameters_count:parameters_count*2]
     )
 
+  def encode(self, input_value: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """This function takes an input vector and returns mu and \
+log variance for the latent space.
 
-  def decode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+   :param input_value An (N, 1) vector of floats, where N is \
+the size of the input layer.
+    """
+    _, _, mu, logvar = self._encode(input_value)
+    return (mu, logvar)
+
+
+  def _decode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """This function takes an (N, 1) vector representing the latent\
+space representation and returns all related z and activation values.
+
+    :param input_value An (N, 1) vector representing the latent\
+space representation.
+    """
     activations = np.array([None] * (len(self.decoder_layers) - 1))
     z_values = np.array([None] * (len(self.decoder_layers) - 1))
 
@@ -162,15 +176,25 @@ latent space vector.
 
     return (z_values, activations)
 
-  def feedforward(self, input: np.ndarray) -> np.ndarray:
-    _, _, mu, log_variance = self.encode(input)
-    generated, _ = self.gen(mu, log_variance)
-    return self.decode(generated)[1][-1]
+  def decode(self, input_value: np.ndarray) -> np.ndarray:
+    return self._decode(input_value)[1][-1]
 
-  def gen(self, mu, log_variance) -> Tuple[np.ndarray, np.ndarray]:
+  def feedforward(self, input: np.ndarray) -> np.ndarray:
+    mu, log_variance = self.encode(input)
+    generated = self.gen(mu, log_variance)
+    return self.decode(generated)
+
+  def _gen(self, mu, log_variance) -> Tuple[np.ndarray, np.ndarray]:
     epsilon = (np.random.randn(len(mu)).reshape(-1, 1))
     z = mu + np.exp(0.5 * log_variance) * epsilon
     return (z, epsilon)
+
+  def gen(self, mu, log_variance) -> np.ndarray:
+    """This function returns a possible latent space vector\
+given the mean, mu, and the natural logarithm of the
+variance, log_variance.
+    """
+    return self._gen(mu, log_variance)[0]
 
   @staticmethod
   def graph_loss(losses, reconstruction_losses, kl_losses, test_losses = [], test_reconstruction_losses = None, test_kl_losses = None):
