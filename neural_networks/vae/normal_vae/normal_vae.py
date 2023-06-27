@@ -253,8 +253,8 @@ variance, log_variance.
           test_reconstruction_loss = 0
           test_kl_loss = 0
           for index, element in enumerate(test_data):
-            _, _, mu, logvar = self.encode(element)
-            generated, _ = self.gen(mu, logvar)
+            mu, logvar = self.encode(element)
+            generated = self.gen(mu, logvar)
             delta_test_reconstruction_loss, delta_test_kl_loss = self.loss(element, self.decode(generated)[1][-1], mu, logvar)
             test_reconstruction_loss += delta_test_reconstruction_loss
             test_kl_loss += delta_test_kl_loss

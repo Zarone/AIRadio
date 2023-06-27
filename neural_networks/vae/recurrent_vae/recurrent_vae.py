@@ -87,7 +87,11 @@ with one for each time step.
 
     assert input_data_size % input_layer_size == 0, "Input data cannot be divided evenly into input layer"
       
-    return np.array([data_point.reshape(input_data_size//input_layer_size,input_layer_size,1) for data_point in input_data])
+    return_array = np.empty( ( len(input_data),  ), dtype=np.ndarray)
+    for i, data_point in enumerate(input_data):
+      return_array[i] = data_point.reshape( data_point.shape[0]//input_layer_size, input_layer_size, 1 )
+
+    return return_array
 
   def _encode(self, input_value: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """This function takes an input vector and returns all \
@@ -177,3 +181,186 @@ where M is the number of iterations.
 space representation.
     """
     return self._decode(input_value, iterations)[1][:, -1]
+
+  def train(
+      self, 
+      _training_data: np.ndarray, 
+      max_epochs: int, 
+      batch_size:int=100, 
+      test_data: (np.ndarray|None)=None, 
+      learning_rate=0.05, 
+      graph=False, 
+      print_epochs=True
+      ) -> None:
+    """This function trains the neural networks on a dataset variable.
+
+    :param _training_data A numpy array of length N where each element is a (P,Q,1) \
+shaped numpy array. N is the number of training examples, P is the number of iterations, \
+and Q is the length of the input layer.
+    """
+
+    assert len(_training_data.shape) == 1, f"Expected training data with shape (N, ), but got {_training_data.shape}"
+    assert len(_training_data[0].shape) == 3, f"Expected training data point with shape (P,Q,1) but got {_training_data[0].shape}"
+
+    losses = []
+    kl_losses = []
+    reconstruction_losses = []
+
+    test_losses = []
+    test_kl_losses = []
+    test_reconstruction_losses = []
+
+    training_data = np.array(_training_data, copy=True)
+    per_epoch = len(training_data) // batch_size
+
+    assert per_epoch != 0, "Batch Size greater than Data Set"
+
+    for i in range(max_epochs):
+      np.random.shuffle(training_data)
+      for j in range(per_epoch):
+        index = j * batch_size
+        batch = training_data[index:index+batch_size]
+
+        reconstruction_loss, kl_loss = self.training_step(batch, learning_rate, print_epochs)
+
+        kl_losses.append(kl_loss)
+        reconstruction_losses.append(reconstruction_loss)
+        loss = kl_loss+reconstruction_loss
+        losses.append(loss)
+
+        test_loss = 0
+        if not(test_data is None) and print_epochs:
+          test_reconstruction_loss = 0
+          test_kl_loss = 0
+          for index, element in enumerate(test_data):
+            mu, logvar = self.encode(element)
+            generated = self.gen(mu, logvar)
+            delta_test_reconstruction_loss, delta_test_kl_loss = self.loss(element, self.decode(generated)[1][-1], mu, logvar)
+            test_reconstruction_loss += delta_test_reconstruction_loss
+            test_kl_loss += delta_test_kl_loss
+          test_loss = test_reconstruction_loss + test_kl_loss
+
+          test_loss /= len(test_data)
+          test_kl_loss /= len(test_data)
+          test_reconstruction_loss /= len(test_data)
+
+          test_losses.append(test_loss)
+          test_kl_losses.append(test_kl_loss)
+          test_reconstruction_losses.append(test_reconstruction_loss)
+
+        if print_epochs:
+          print(f"Epoch {i}, Mini-Batch {j}: Loss = {loss}, Test Loss = {test_loss}")
+          # print(f"Epoch {i}, Mini-Batch {j}: KL Loss = {kl_loss}, Reconstruction Loss = {reconstruction_loss}")
+    if graph:
+      self.graph_loss(losses, reconstruction_losses, kl_losses, test_losses, test_reconstruction_losses, test_kl_losses)
+
+  def training_step(self, batch, learning_rate, print_epochs):
+    self.init_gradients()
+
+    assert (not self.weight_gradient is None and not self.bias_gradient is None), "Weight gradient not defined for some reason"
+
+    reconstruction_loss = 0
+    kl_loss = 0
+
+    # Beta affects the relative importance of kl_loss 
+    # with respect to reconstruction_loss in calculating
+    # the gradient.
+    Beta = 1
+
+
+    for i, data_point in enumerate(batch):
+      print(f"data_point {i}")
+      print(data_point)
+      for j, time_step in enumerate(data_point):
+        print(f"time step {j}")
+        print(time_step)
+
+        # Get activations, losses, etc after feedforward
+        # Backpropagate through decoder
+          # Find starting dL_dz, set last_dL_dz to this
+          # For each time step
+            # For each layer to first hidden layer in decoder
+              # weight_gradient, output_dL_dz += backpropagate(layer, last_dL_dz, activations, ...)
+              # where output_dL_dz is the dL_dz for the output of the last timestep
+              # set last_dL_dz to output_dL_dz
+        # Manage dL_dmu like before
+          # For each time step, backpropagate
+
+
+      # z1, a1, mu, log_variance = self._encode(data_point)
+      # generated, epsilon = self._gen(mu, log_variance)
+      # z2, a2 = self._decode(generated)
+
+      # # These are needed for some gradient calculations
+      # a1[len(self.encoder_layers)-2] = generated
+
+      # z_values = np.concatenate((z1, z2))
+      # activation_values = np.concatenate((a1, a2))
+
+      # # Partial Derivative of Loss with respect to the output activations
+      # dL_daL = (activation_values[-1] - data_point) * (2/len(activation_values[-1]))
+      # if print_epochs:
+        # delta_reconstruction_loss, delta_kl_loss = self.loss(data_point, activation_values[-1], mu, log_variance)
+        # reconstruction_loss += delta_reconstruction_loss
+        # kl_loss += delta_kl_loss
+
+      # len_z = len(z_values)
+
+      # # Loss Gradients with respect to z, for just the decoder
+      # decoder_gradients_z = np.array([None] * len_z)
+
+      # decoder_gradients_z[-1] = dL_daL
+
+      # last_index = len_z - 1
+      # first_index = len(self.encoder_layers) - 2
+
+      # # Backpropagate through Decoder
+      # for j in range(last_index, first_index, -1):
+        # z_layer = z_values[j]
+        # if j != last_index:
+          # decoder_gradients_z[j] = np.matmul(
+              # self.weights[j+1].transpose(), decoder_gradients_z[j+1]
+            # ) * self.activation_derivative(z_layer)
+        # a_layer = activation_values[j-1]
+        # self.weight_gradient[j] += np.matmul(decoder_gradients_z[j], a_layer.transpose())
+        # self.bias_gradient[j] += decoder_gradients_z[j]
+
+
+      # dL_da = np.matmul(self.weights[first_index+1].transpose(), decoder_gradients_z[first_index+1])
+
+      # # ∂L/∂mu = ∂L/∂z_n * ∂z_n/∂a_(n-1) * ∂a_(n-1)/∂mu + ∂L/∂D * ∂D/∂mu
+      # #        = ∂L/∂z_n * w_n           * 1            + 1    * mu/N
+      # #        = ∂L/∂z_n * w_n + mu/N
+      # dL_dmu = dL_da + Beta*mu/self.latent_size
+
+      # # ∂L/∂logvar = ∂L/∂z_n * ∂z_n/∂a_(n-1) * ∂a_(n-1)/∂logvar                + ∂L/∂D   * ∂D/∂logvar
+      # #            = ∂L/∂z_n * w_n           * epsilon/2*np.exp(logvar/2)      + 1       * (1-np.exp(logvar))/2N
+      # #            = ∂L/∂z_n * w_n * epsilon/2*np.exp(logvar/2) - (1-np.exp(logvar))/2N
+      # dL_dlogvar = \
+        # dL_da \
+        # * epsilon/2*np.exp(log_variance/2) \
+        # -Beta*(1-np.exp(log_variance))/self.latent_size/2
+
+      # last_index = first_index
+      # first_index = -1
+
+      # decoder_gradients_z[last_index] = np.concatenate((dL_dmu, dL_dlogvar), axis=0)
+
+      # # Backpropagate through Encoder
+      # for j in range(last_index, first_index, -1):
+        # if j != last_index:
+          # decoder_gradients_z[j] = np.matmul(
+              # self.weights[j+1].transpose(), decoder_gradients_z[j+1]
+            # ) * self.activation_derivative(z_values[j])
+
+        # if j != 0:
+          # self.weight_gradient[j] += np.matmul(decoder_gradients_z[j], activation_values[j-1].transpose())
+          # self.bias_gradient[j] += decoder_gradients_z[j]
+      
+      # self.weight_gradient[0] += np.matmul(decoder_gradients_z[0], data_point.transpose())
+      # self.bias_gradient[0] += decoder_gradients_z[0]
+
+    # self.weights -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient)
+    # self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient)
+    # return reconstruction_loss/len(batch), kl_loss/len(batch)
+
