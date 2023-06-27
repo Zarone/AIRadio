@@ -31,14 +31,4 @@ sounds, names = audio.get_raw_data(5, MAX_AMPLITUDES, AMPLITUDE_SCALE)
 
 # audio.plot_audio_comparison(song, decompressed)
 
-network: RecurrentVAE = RecurrentVAE((5, 4, 3, 3), (3, 3, 4, 5))
-time_seperated_sounds: np.ndarray = network.get_time_seperated_data(sounds)
-encoded = network.encode(time_seperated_sounds[0])
-_, _, mu, logvar, _  = encoded
-generated, _ = network.gen(mu, logvar)
-print("generated")
-print(generated)
-decoded = network.decode(generated, 2)
-print("decoded[1]")
-print(decoded[1])
 # network.train(sounds)

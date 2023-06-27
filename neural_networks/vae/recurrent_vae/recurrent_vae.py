@@ -130,7 +130,7 @@ iterations in the recurrent network.
       epsilon
     )
 
-  def decode(self, input_value: np.ndarray, iterations: int) -> Tuple[np.ndarray, np.ndarray]:
+  def _decode(self, input_value: np.ndarray, iterations: int) -> Tuple[np.ndarray, np.ndarray]:
     """This function takes an (N, 1) vector representing the latent\
 space representation and returns all related z and activation values.
 
@@ -156,3 +156,12 @@ space representation.
 
     return (z_values, activations)
 
+  def decode(self, input_value: np.ndarray, iterations: int) -> np.ndarray:
+    """This function takes an (N, 1) vector representing the latent\
+space representation and returns an M-length array of N-length arrays of floats\
+where M is the number of iterations.
+
+    :param input_value An (N, 1) vector representing the latent\
+space representation.
+    """
+    return self._decode(input_value, iterations)[1][:, -1]
