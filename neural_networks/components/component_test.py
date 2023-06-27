@@ -87,3 +87,5 @@ def component_test(Tester):
   y_pred = np.array([0.2, 0.7])
   expected_loss = np.sum(np.square(y_true - y_pred)) / len(y_true)
   module.tester("Network Loss", module.eq(network.loss(network.format_unsupervised_input(y_true), y_pred), (expected_loss,)))
+
+  network.train( np.array( [ [[1,2], [2, 4]], [[3,4], [6, 8]], [[5,6], [10, 12]] ] ), 1, 3, print_epochs=False )

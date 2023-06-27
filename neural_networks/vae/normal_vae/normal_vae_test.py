@@ -6,7 +6,10 @@ from typing import Any
 def normal_vae_test(Tester):
   module = Tester("NN VAE Test")
 
-  network:VAE = VAE(encoder_layers=(10,1), decoder_layers=(1,10))
-  input: np.ndarray[Any, np.dtype[np.float64]] = np.random.random((10, 1))
+  network:VAE = VAE(encoder_layers=(3,1), decoder_layers=(1,3))
+  input: np.ndarray[Any, np.dtype[np.float64]] = np.random.random((3, 1))
   output = network.feedforward(input)
-  module.tester("VAE Feedforward", module.eq(output.shape, (10, 1)))
+
+  module.tester("VAE Feedforward", module.eq(output.shape, (3, 1)))
+
+  network.train( np.array( [ [[1], [2], [3]], [[4], [5], [6]], [[7], [8], [9]] ] ), 1, 3, print_epochs=False )

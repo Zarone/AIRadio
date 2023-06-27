@@ -186,7 +186,7 @@ and the second element is the true output.
 
     len_layers = len(self.layers)
     for _, data_point in enumerate(batch):
-      z_values, activations = self.feedforward_full(data_point)
+      z_values, activations = self._feedforward(data_point)
 
       # Partial Derivative of Loss with respect to the output activations
       dL_daL = (activations[-1] - data_point[1]) * (2/len(activations[-1]))

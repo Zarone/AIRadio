@@ -225,8 +225,6 @@ variance, log_variance.
 
 
   def train(self, _training_data: np.ndarray, max_epochs: int, batch_size:int=100, test_data: (np.ndarray|None)=None, learning_rate=0.05, graph=False, print_epochs=True) -> None:
-    print("len sounds", len(_training_data))
-    print("len test_data", len(test_data) if not test_data is None else 0)
     losses = []
     kl_losses = []
     reconstruction_losses = []
@@ -291,9 +289,9 @@ variance, log_variance.
 
 
     for _, data_point in enumerate(batch):
-      z1, a1, mu, log_variance = self.encode(data_point)
-      generated, epsilon = self.gen(mu, log_variance)
-      z2, a2 = self.decode(generated)
+      z1, a1, mu, log_variance = self._encode(data_point)
+      generated, epsilon = self._gen(mu, log_variance)
+      z2, a2 = self._decode(generated)
 
       # These are needed for some gradient calculations
       a1[len(self.encoder_layers)-2] = generated
