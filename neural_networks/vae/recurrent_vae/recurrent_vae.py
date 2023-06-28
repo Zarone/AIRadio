@@ -93,7 +93,7 @@ with one for each time step.
 
     return return_array
 
-  def _encode(self, input_value: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+  def _encode(self, input_value: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """This function takes an input vector and returns all \
 internally relevant variables after feedforward to latent space.
 
@@ -110,8 +110,13 @@ iterations in the recurrent network.
     activations = np.empty([iterations, num_layers-1], dtype=np.ndarray)
     z_values = np.empty([iterations, num_layers-1], dtype=np.ndarray)
     epsilon = np.empty([iterations-1, self.hidden_state_size, 1], dtype=np.ndarray)
+    combined_inputs = np.empty(
+        (iterations, ), 
+         dtype=np.ndarray
+       )
 
     last_activations = np.concatenate( (input_value[0], np.empty( (self.hidden_state_size, 1) )) )
+    combined_inputs[0] = last_activations
     for iter in range(0, iterations):
       for layer in range(0, len(self.encoder_layers)-1):
         z_values[iter][layer], activations[iter][layer] = self.feedforward_layer(layer, last_activations)
@@ -124,6 +129,7 @@ iterations in the recurrent network.
                 )
 
         last_activations = np.concatenate( (input_value[iter+1], new_hidden_state) )
+        combined_inputs[iter+1] = last_activations
     parameters_count = len(activations[-1][-1])//2
 
     return (
@@ -131,6 +137,7 @@ iterations in the recurrent network.
       activations,
       activations[-1][-1][:parameters_count], 
       activations[-1][-1][parameters_count:parameters_count*2],
+      combined_inputs,
       epsilon
     )
 
@@ -270,12 +277,20 @@ and Q is the length of the input layer.
 
     for i, data_point in enumerate(batch):
       print(f"data_point {i}")
-      print(data_point)
+
+      z1, a1, mu, log_variance, decoder_inputs, epsilon_encoder = self._encode(data_point)
+      generated, epsilon = self._gen(mu, log_variance)
+      z2, a2 = self._decode(generated, len(data_point))
+
+      z_values = np.concatenate((z1.T, z2.T)).T
+      activation_values = np.concatenate((a1.T, a2.T)).T
+      
+      z_values[:, len(self.encoder_layers)-2] = decoder_inputs[:]
+      activation_values[:, len(self.encoder_layers)-2] = decoder_inputs[:]
+
       for j, time_step in enumerate(data_point):
         print(f"time step {j}")
-        print(time_step)
 
-        # Get activations, losses, etc after feedforward
         # Backpropagate through decoder
           # Find starting dL_dz, set last_dL_dz to this
           # For each time step
@@ -283,84 +298,57 @@ and Q is the length of the input layer.
               # weight_gradient, output_dL_dz += backpropagate(layer, last_dL_dz, activations, ...)
               # where output_dL_dz is the dL_dz for the output of the last timestep
               # set last_dL_dz to output_dL_dz
-        # Manage dL_dmu like before
-          # For each time step, backpropagate
+        # Find dL_dmu, dL_dlogvar like before. Get dL_dz from this
+          # set last_dL_dz to that dL_dz from dL_dmu and dL_dlogar
+          # For each time step
+            # For each layer to first hidden layer in encoder
+              # weight_gradient, output_dL_dz += backpropagate(layer, last_dL_dz, activations, ...)
+              # where output_dL_dz is the dL_dz for the output of the last timestep
+              # set last_dL_dz to output_dL_dz
+          
+        dL_daL = (activation_values[j][-1] - time_step) * (2/len(activation_values[j][-1]))
+        last_dL_dz = dL_daL 
 
 
-      # z1, a1, mu, log_variance = self._encode(data_point)
-      # generated, epsilon = self._gen(mu, log_variance)
-      # z2, a2 = self._decode(generated)
+        # TODO: PLEASE put this section into its own function
 
-      # # These are needed for some gradient calculations
-      # a1[len(self.encoder_layers)-2] = generated
+        # Backpropagates through time, where k is the time
+        # step we backpropagate on
+        for k in range(j, -1, -1):
+          print(f"k {k}")
 
-      # z_values = np.concatenate((z1, z2))
-      # activation_values = np.concatenate((a1, a2))
+          last_layer_index = len(self.weights) - 1
+          decoder_stop_layer = len(self.encoder_layers) - 2
 
-      # # Partial Derivative of Loss with respect to the output activations
-      # dL_daL = (activation_values[-1] - data_point) * (2/len(activation_values[-1]))
-      # if print_epochs:
-        # delta_reconstruction_loss, delta_kl_loss = self.loss(data_point, activation_values[-1], mu, log_variance)
-        # reconstruction_loss += delta_reconstruction_loss
-        # kl_loss += delta_kl_loss
+          for layer in range(last_layer_index, decoder_stop_layer, -1):
+            print(f"layer {layer}")
+            delta_weight_gradient, delta_bias_gradient, last_dL_dz = self.backpropagate_layer(layer, last_dL_dz, z_values[k][layer-1], activation_values[k][layer-1])
+            self.weight_gradient[layer] += delta_weight_gradient
+            self.bias_gradient[layer] += delta_bias_gradient
 
-      # len_z = len(z_values)
+          last_dL_dz = last_dL_dz[self.hidden_state_size:]
 
-      # # Loss Gradients with respect to z, for just the decoder
-      # decoder_gradients_z = np.array([None] * len_z)
+    print("self.weight_gradient")
+    print(self.weight_gradient)
 
-      # decoder_gradients_z[-1] = dL_daL
+  def backpropagate_layer(
+      self, 
+      layer: int, 
+      dL_dz: np.ndarray, 
+      z_layer: np.ndarray, 
+      a_layer: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
 
-      # last_index = len_z - 1
-      # first_index = len(self.encoder_layers) - 2
+    activation_derivative_func = self\
+      .activation_derivative_exceptions\
+      .get(layer+1, self.activation_derivative)
 
-      # # Backpropagate through Decoder
-      # for j in range(last_index, first_index, -1):
-        # z_layer = z_values[j]
-        # if j != last_index:
-          # decoder_gradients_z[j] = np.matmul(
-              # self.weights[j+1].transpose(), decoder_gradients_z[j+1]
-            # ) * self.activation_derivative(z_layer)
-        # a_layer = activation_values[j-1]
-        # self.weight_gradient[j] += np.matmul(decoder_gradients_z[j], a_layer.transpose())
-        # self.bias_gradient[j] += decoder_gradients_z[j]
+    output_dL_dz = np.matmul(
+        self.weights[layer].T, dL_dz
+      ) * activation_derivative_func(z_layer)
 
+    weight_gradient = np.matmul(dL_dz, a_layer.T)
+    bias_gradient = dL_dz
 
-      # dL_da = np.matmul(self.weights[first_index+1].transpose(), decoder_gradients_z[first_index+1])
-
-      # # ∂L/∂mu = ∂L/∂z_n * ∂z_n/∂a_(n-1) * ∂a_(n-1)/∂mu + ∂L/∂D * ∂D/∂mu
-      # #        = ∂L/∂z_n * w_n           * 1            + 1    * mu/N
-      # #        = ∂L/∂z_n * w_n + mu/N
-      # dL_dmu = dL_da + Beta*mu/self.latent_size
-
-      # # ∂L/∂logvar = ∂L/∂z_n * ∂z_n/∂a_(n-1) * ∂a_(n-1)/∂logvar                + ∂L/∂D   * ∂D/∂logvar
-      # #            = ∂L/∂z_n * w_n           * epsilon/2*np.exp(logvar/2)      + 1       * (1-np.exp(logvar))/2N
-      # #            = ∂L/∂z_n * w_n * epsilon/2*np.exp(logvar/2) - (1-np.exp(logvar))/2N
-      # dL_dlogvar = \
-        # dL_da \
-        # * epsilon/2*np.exp(log_variance/2) \
-        # -Beta*(1-np.exp(log_variance))/self.latent_size/2
-
-      # last_index = first_index
-      # first_index = -1
-
-      # decoder_gradients_z[last_index] = np.concatenate((dL_dmu, dL_dlogvar), axis=0)
-
-      # # Backpropagate through Encoder
-      # for j in range(last_index, first_index, -1):
-        # if j != last_index:
-          # decoder_gradients_z[j] = np.matmul(
-              # self.weights[j+1].transpose(), decoder_gradients_z[j+1]
-            # ) * self.activation_derivative(z_values[j])
-
-        # if j != 0:
-          # self.weight_gradient[j] += np.matmul(decoder_gradients_z[j], activation_values[j-1].transpose())
-          # self.bias_gradient[j] += decoder_gradients_z[j]
-      
-      # self.weight_gradient[0] += np.matmul(decoder_gradients_z[0], data_point.transpose())
-      # self.bias_gradient[0] += decoder_gradients_z[0]
-
-    # self.weights -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient)
-    # self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient)
-    # return reconstruction_loss/len(batch), kl_loss/len(batch)
+    return (weight_gradient, bias_gradient, output_dL_dz)
 

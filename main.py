@@ -8,7 +8,7 @@ import typing
 AMPLITUDE_SCALE = 10
 
 # MAX_AMPLITUDES = -1
-MAX_AMPLITUDES = 10
+MAX_AMPLITUDES = 15
 
 sounds, names = audio.get_raw_data(5, MAX_AMPLITUDES, AMPLITUDE_SCALE)
 
