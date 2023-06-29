@@ -34,4 +34,4 @@ sounds, names = audio.get_raw_data(5, MAX_AMPLITUDES, AMPLITUDE_SCALE)
 
 network: RecurrentVAE = RecurrentVAE((5, 4, 3, 3), (3, 3, 4, 5))
 time_seperated_sounds: np.ndarray = network.get_time_seperated_data(sounds)
-network.train(time_seperated_sounds, batch_size = 5, max_epochs = 20)
+network.train(time_seperated_sounds, batch_size = 5, max_epochs = 1)
