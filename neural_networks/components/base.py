@@ -1,235 +1,229 @@
 from neural_networks.components.optimizer.optimizer import Optimizer
 from neural_networks.components.optimizer.adam import Adam
-from typing import Any, Tuple, Callable, List
+from typing import Any, Tuple, List
 import numpy as np
 import neural_networks.components.config as config
-from neural_networks.components.activations import *
+from neural_networks.components.activations import\
+    leaky_relu_derivative, leaky_relu, linear
 import math
 import matplotlib.pyplot as plt
 
+
 class BaseNetwork:
 
-  """
-  :param layers This defines the number of nodes in each \
-activation layer (including input space and latent space)
-  :param activation This is the primary activation function \
-which the neural network uses
-  :param activation_exceptions This is a dictionary where the \
-key equals the layer where the exception occurs, and \
-the key is the replacement activation function
-  """
-  def __init__(
-      self, 
-      layers: Tuple[int, ...], 
-      activation=leaky_relu, 
-      activation_derivative=leaky_relu_derivative, 
-      activation_exceptions: dict[int, Callable]={},
-      activation_derivative_exceptions: dict[int, Callable]={},
-      optimizer: Optimizer = Adam()
-  ) -> None:
-    self.optimizer = optimizer
-    self.activation = activation
-    self.activation_derivative = activation_derivative
-    self.activation_exceptions = activation_exceptions
-    self.activation_derivative_exceptions = activation_derivative_exceptions
-
-    if (activation_exceptions.get(len(layers)-1, None)) is None:
-      self.activation_exceptions[len(layers)-1] = linear
-
-    if (activation_derivative_exceptions.get(len(layers)-1, None)) is None:
-      self.activation_derivative_exceptions[len(layers)-1] = linear_derivative
-
-    self.init_coefficients(layers)
-
-    # These are used in training
-    self.weight_gradient = None
-    self.bias_gradient = None
-
-  def get_init_param_minmax(self, index):
-    max = math.sqrt(2/self.layers[index])
-    min = -max
-    return min, max
-
-  def init_coefficients(self, layers: Tuple[int, ...]) -> None:
-    self.layers = layers
-    num_layers = len(self.layers) - 1
-
-    self.biases: np.ndarray = np.array([None] * num_layers) 
-    self.weights: np.ndarray = np.array([None] * num_layers)
-
-    for i in range(num_layers):
-      max = math.sqrt(2/layers[i])
-      min = -max
-      self.biases[i] = config.rng.uniform(min,max,(layers[i+1], 1))
-      self.weights[i] = config.rng.uniform(min,max,(layers[i+1], layers[i]))
-
-  def _feedforward(self, input_val: np.ndarray) -> Tuple[List, List]:
-    """This functions takes an input and returns the z values 
-    and activations of the network after a feedforward.
-
-    :param input_val should be a numpy array where the first element is the input, \
-and the second element is the true output.
+    """
+    :param layers This defines the number of nodes in each \
+  activation layer (including input space and latent space)
+    :param activation This is the primary activation function \
+  which the neural network uses
     """
 
-    assert len(input_val.shape) != 1, f"function expected input_val shape of (n,2), received shape of {input_val.shape}"
+    def __init__(
+        self,
+        layers: Tuple[int, ...],
+        activation=leaky_relu,
+        activation_derivative=leaky_relu_derivative,
+        optimizer: Optimizer = Adam()
+    ) -> None:
+        self.optimizer = optimizer
+        self.activation = activation
+        self.activation_derivative = activation_derivative
 
-    num_layers = len(self.layers) - 1
-    activations: List = [None] * num_layers
-    zs: List = [None] * num_layers
-  
-    last_activations = input_val[0]
-    for i, _ in enumerate(activations):
-      zs[i], activations[i] = self.feedforward_layer(i, last_activations)
-      last_activations = activations[i]
+        self.init_coefficients(layers)
 
-    return (zs, activations)
+        # These are used in training
+        self.weight_gradient = None
+        self.bias_gradient = None
 
-  def feedforward(self, input):
-    return self._feedforward(input)[1][-1]
+    def get_init_param_minmax(self, index):
+        max = math.sqrt(2/self.layers[index])
+        min = -max
+        return min, max
 
-  def feedforward_layer(self, i: int, last_activations: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    # z_{i} = w * a_{i-1} + b
-    z = np.matmul(self.weights[i], last_activations) + self.biases[i]
+    def init_coefficients(self, layers: Tuple[int, ...]) -> None:
+        self.layers = layers
+        num_layers = len(self.layers) - 1
 
-    # Sometimes, the default activation function, self.activation,
-    # will not always be the activation for every layer. For instance,
-    # ReLu is not often the activation for the final layer since negative
-    # results could not then be returned ever, so self.activation_exceptions
-    # would have a value at key=final_layer_index with value=sigmoid
-    
-    # In activation_exceptions, i=0 corresponds to the first (input) layer
-    
-    activation_function = self.activation_exceptions.get(i+1, self.activation)
-    return (z, activation_function(z))
+        self.biases: np.ndarray = np.array([None] * num_layers)
+        self.weights: np.ndarray = np.array([None] * num_layers)
 
-  def loss(self, y_true, y_pred):
-    assert len(y_true.shape) != 1, f"function expected input_val shape of (n,2), received shape of {y_true.shape}"
+        for i in range(num_layers):
+            max = math.sqrt(2/layers[i])
+            min = -max
+            self.biases[i] = config.rng.uniform(min, max, (layers[i+1], 1))
+            self.weights[i] = config.rng.uniform(
+                min, max, (layers[i+1], layers[i]))
 
-    n = y_true[1].shape[0]  # Number of samples
+    def _feedforward(self, input_val: np.ndarray) -> Tuple[List, List]:
+        """This functions takes an input and returns the z values 
+        and activations of the network after a feedforward.
 
-    # Reconstruction loss
-    reconstruction_loss = np.sum(np.square(y_true[1] - y_pred)) / n
+        :param input_val should be a numpy array where the first element is the input, \
+    and the second element is the true output.
+        """
 
-    return (reconstruction_loss,)
+        assert len(
+            input_val.shape) != 1, f"function expected input_val shape of (n,2), received shape of {input_val.shape}"
 
-  @staticmethod
-  def graph_loss(losses, test_losses = []):
-    sub = plt.subplots(2 if not len(test_losses) == 0 else 1, sharex=True)
-    axs: Any = sub[1]
-    if len(test_losses) == 0:
-      axs = [axs]
-    axs[0].plot(losses, "purple", label="Total Loss")
-    axs[0].set(ylabel='Loss',
-     title='Loss over time (Training Data)')
-    axs[0].legend(loc="upper left")
-    axs[0].grid()
-    axs[0].semilogy()
+        num_layers = len(self.layers) - 1
+        activations: List = [None] * num_layers
+        zs: List = [None] * num_layers
 
-    if test_losses:
-      axs[1].plot(test_losses, "purple", label="Total Loss")
-      axs[1].set(xlabel='Mini Batch', ylabel='Loss',
-       title='Loss over time (Test Data)')
-      axs[1].legend(loc="upper left")
-      axs[1].grid()
-      axs[1].semilogy() 
+        last_activations = input_val[0]
+        for i, _ in enumerate(activations):
+            zs[i], activations[i] = self.feedforward_layer(i, last_activations)
+            last_activations = activations[i]
 
-    plt.show()
+        return (zs, activations)
 
+    def feedforward(self, input):
+        return self._feedforward(input)[1][-1]
 
-  def train(self, _training_data: np.ndarray, max_epochs: int, batch_size:int=100, test_data: (np.ndarray|None)=None, learning_rate=0.05, graph=False, print_epochs=True) -> None:
-    losses = []
-    test_losses = []
+    def feedforward_layer(self, i: int, last_activations: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        # z_{i} = w * a_{i-1} + b
+        z = np.matmul(self.weights[i], last_activations) + self.biases[i]
 
-    training_data = np.array(_training_data, copy=True)
+        is_last_layer = i == len(self.layers)-2
 
-    per_epoch = len(training_data) // batch_size
+        activation_function = self.activation if not is_last_layer else linear
+        return (z, activation_function(z))
 
-    assert per_epoch != 0, "Batch Size greater than Data Set"
-    for i in range(max_epochs):
-      np.random.shuffle(training_data)
-      for j in range(per_epoch):
-        index = j * batch_size
-        batch = training_data[index:index+batch_size]
+    def loss(self, y_true, y_pred):
+        assert len(
+            y_true.shape) != 1, f"function expected input_val shape of (n,2), received shape of {y_true.shape}"
 
-        reconstruction_loss = self.training_step(batch, learning_rate, print_epochs)[0]
-        loss = reconstruction_loss
-        losses.append(loss)
+        n = y_true[1].shape[0]  # Number of samples
 
-        test_loss = 0
-        if not(test_data is None) and print_epochs:
-          for index, element in enumerate(test_data):
-            delta_test_reconstruction_loss = self.loss(test_data[index], self.feedforward(test_data[index]))[0]
-            test_loss += delta_test_reconstruction_loss
+        # Reconstruction loss
+        reconstruction_loss = np.sum(np.square(y_true[1] - y_pred)) / n
 
-          test_loss /= len(test_data)
-          test_losses.append(test_loss)
+        return (reconstruction_loss,)
 
-        if print_epochs:
-          print(f"Epoch {i}, Mini-Batch {j}: Loss = {loss}, Test Loss = {test_loss}")
-    if graph:
-      self.graph_loss(losses, test_losses)
+    @staticmethod
+    def graph_loss(losses, test_losses=[]):
+        sub = plt.subplots(2 if not len(test_losses) == 0 else 1, sharex=True)
+        axs: Any = sub[1]
+        if len(test_losses) == 0:
+            axs = [axs]
+        axs[0].plot(losses, "purple", label="Total Loss")
+        axs[0].set(ylabel='Loss',
+                   title='Loss over time (Training Data)')
+        axs[0].legend(loc="upper left")
+        axs[0].grid()
+        axs[0].semilogy()
 
-  def init_gradients(self):
-    if self.weight_gradient is None or self.bias_gradient is None:
-      self.weight_gradient = np.empty(self.weights.shape, np.ndarray)
-      self.bias_gradient = np.empty(self.biases.shape, np.ndarray)
-    for i, _ in enumerate(self.weight_gradient):
-      self.weight_gradient[i] = np.zeros(self.weights[i].shape)
-      self.bias_gradient[i] = np.zeros(self.biases[i].shape)
+        if test_losses:
+            axs[1].plot(test_losses, "purple", label="Total Loss")
+            axs[1].set(xlabel='Mini Batch', ylabel='Loss',
+                       title='Loss over time (Test Data)')
+            axs[1].legend(loc="upper left")
+            axs[1].grid()
+            axs[1].semilogy()
 
-  def training_step(self, batch, learning_rate, print_epochs):
-    self.init_gradients()
+        plt.show()
 
-    assert (not self.weight_gradient is None and not self.bias_gradient is None), "Weight gradient not defined for some reason"
+    def train(self, _training_data: np.ndarray, max_epochs: int, batch_size: int = 100, test_data: (np.ndarray | None) = None, learning_rate=0.05, graph=False, print_epochs=True) -> None:
+        losses = []
+        test_losses = []
 
-    reconstruction_loss = 0
+        training_data = np.array(_training_data, copy=True)
 
-    len_layers = len(self.layers)
-    for _, data_point in enumerate(batch):
-      z_values, activations = self._feedforward(data_point)
+        per_epoch = len(training_data) // batch_size
 
-      # Partial Derivative of Loss with respect to the output activations
-      dL_daL = (activations[-1] - data_point[1]) * (2/len(activations[-1]))
-      if print_epochs:
-        delta_reconstruction_loss = self.loss(data_point, activations[-1])[0]
-        reconstruction_loss += delta_reconstruction_loss
+        assert per_epoch != 0, "Batch Size greater than Data Set"
+        for i in range(max_epochs):
+            np.random.shuffle(training_data)
+            for j in range(per_epoch):
+                index = j * batch_size
+                batch = training_data[index:index+batch_size]
 
-      len_z = len(z_values)
+                reconstruction_loss = self.training_step(
+                    batch, learning_rate, print_epochs)[0]
+                loss = reconstruction_loss
+                losses.append(loss)
 
-      decoder_gradients_z = np.array([None] * len_z)
+                test_loss = 0
+                if not (test_data is None) and print_epochs:
+                    for index, element in enumerate(test_data):
+                        delta_test_reconstruction_loss = self.loss(
+                            test_data[index], self.feedforward(test_data[index]))[0]
+                        test_loss += delta_test_reconstruction_loss
 
-      decoder_gradients_z[-1] = dL_daL * self.activation_derivative_exceptions.get(len_layers-1, self.activation_derivative)(z_values[-1])
+                    test_loss /= len(test_data)
+                    test_losses.append(test_loss)
 
-      last_index = len_z - 1
+                if print_epochs:
+                    print(
+                        f"Epoch {i}, Mini-Batch {j}: Loss = {loss}, Test Loss = {test_loss}")
+        if graph:
+            self.graph_loss(losses, test_losses)
 
-      for j in range(last_index, -1, -1):
-        z_layer = z_values[j]
-        if j != last_index:
-          activation_derivative_func = self.activation_derivative_exceptions.get(j+1, self.activation_derivative)
-          decoder_gradients_z[j] = np.matmul(
-            self.weights[j+1].transpose(), decoder_gradients_z[j+1]
-          ) * activation_derivative_func(z_layer)
-          
-        if j != 0:
-          self.weight_gradient[j] += np.matmul(decoder_gradients_z[j], activations[j-1].transpose())
-          self.bias_gradient[j] += decoder_gradients_z[j]
+    def init_gradients(self):
+        if self.weight_gradient is None or self.bias_gradient is None:
+            self.weight_gradient = np.empty(self.weights.shape, np.ndarray)
+            self.bias_gradient = np.empty(self.biases.shape, np.ndarray)
+        for i, _ in enumerate(self.weight_gradient):
+            self.weight_gradient[i] = np.zeros(self.weights[i].shape)
+            self.bias_gradient[i] = np.zeros(self.biases[i].shape)
 
-      self.weight_gradient[0] += np.matmul(decoder_gradients_z[0], data_point[0].transpose())
-      self.bias_gradient[0] += decoder_gradients_z[0]
+    def training_step(self, batch, learning_rate, print_epochs):
+        self.init_gradients()
 
-    self.weights -= learning_rate/len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient)
-    self.biases -= learning_rate/len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient)
-    return (reconstruction_loss/len(batch),)
+        assert (not self.weight_gradient is None and not self.bias_gradient is None), "Weight gradient not defined for some reason"
 
-  @staticmethod
-  def format_unsupervised_input(input):
-    return np.array([input, input])
+        reconstruction_loss = 0
 
-  def save_to_file(self, file: str):
-    np.savez(file, weights=self.weights, biases=self.biases)
+        len_layers = len(self.layers)
+        for _, data_point in enumerate(batch):
+            z_values, activations = self._feedforward(data_point)
 
-  def init_from_file(self, file: str):
-    parameters = np.load(file, allow_pickle=True)
-    self.weights = parameters['weights']
-    self.biases = parameters['biases']
+            # Partial Derivative of Loss with respect to the output activations
+            dL_daL = (activations[-1] - data_point[1]) * \
+                (2/len(activations[-1]))
+            if print_epochs:
+                delta_reconstruction_loss = self.loss(
+                    data_point, activations[-1])[0]
+                reconstruction_loss += delta_reconstruction_loss
 
+            len_z = len(z_values)
+
+            decoder_gradients_z = np.array([None] * len_z)
+
+            decoder_gradients_z[-1] = dL_daL  # * linear_derivative(z_values[-1])
+
+            last_index = len_z - 1
+
+            for j in range(last_index, -1, -1):
+                z_layer = z_values[j]
+                if j != last_index:
+                    activation_derivative_func = self.activation_derivative
+                    decoder_gradients_z[j] = np.matmul(
+                        self.weights[j+1].transpose(), decoder_gradients_z[j+1]
+                    ) * activation_derivative_func(z_layer)
+
+                if j != 0:
+                    self.weight_gradient[j] += np.matmul(
+                        decoder_gradients_z[j], activations[j-1].transpose())
+                    self.bias_gradient[j] += decoder_gradients_z[j]
+
+            self.weight_gradient[0] += np.matmul(
+                decoder_gradients_z[0], data_point[0].transpose())
+            self.bias_gradient[0] += decoder_gradients_z[0]
+
+        self.weights -= learning_rate / \
+            len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient)
+        self.biases -= learning_rate / \
+            len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient)
+        return (reconstruction_loss/len(batch),)
+
+    @staticmethod
+    def format_unsupervised_input(input):
+        return np.array([input, input])
+
+    def save_to_file(self, file: str):
+        np.savez(file, weights=self.weights, biases=self.biases)
+
+    def init_from_file(self, file: str):
+        parameters = np.load(file, allow_pickle=True)
+        self.weights = parameters['weights']
+        self.biases = parameters['biases']

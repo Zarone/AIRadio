@@ -1,4 +1,3 @@
-from neural_networks.components.activations import *
 from neural_networks.vae.recurrent_vae.recurrent_vae import RecurrentVAE
 import numpy as np
 
