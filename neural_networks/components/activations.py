@@ -35,7 +35,7 @@ def leaky_relu_derivative(x, alpha=0.01):
 
 
 def elu(x, alpha=1.0):
-    return np.where(x >= 0, x, alpha * (np.exp(x) - 2))
+    return np.where(x >= 0, x, alpha * (np.exp(x) - 1))
 
 
 def elu_derivative(x, alpha=1.0):
