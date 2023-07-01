@@ -92,8 +92,10 @@ class BaseNetwork:
 
         n = y_true[1].shape[0]  # Number of samples
 
+        diff = y_true[1] - y_pred
+
         # Reconstruction loss
-        reconstruction_loss = np.sum(np.square(y_true[1] - y_pred)) / n
+        reconstruction_loss = np.sum(np.square(diff)) / n
 
         return (reconstruction_loss,)
 
@@ -120,19 +122,28 @@ class BaseNetwork:
 
         plt.show()
 
-    def train(self, _training_data: np.ndarray, max_epochs: int, batch_size: int = 100, test_data: (np.ndarray | None) = None, learning_rate=0.05, graph=False, print_epochs=True) -> None:
+    def train(
+        self, 
+        _training_data: np.ndarray, 
+        max_epochs: int, 
+        batch_size: int = 100, 
+        test_data: (np.ndarray | None) = None, 
+        learning_rate=0.05, 
+        graph=False, 
+        print_epochs=True
+    ) -> None:
         losses = []
         test_losses = []
 
         training_data = np.array(_training_data, copy=True)
 
         print(training_data.shape)
-        assert training_data.shape[0] == 2\
+        assert training_data.shape[1] == 2\
             and training_data.shape[2] == self.layers[0]\
             and training_data.shape[3] == 1,\
-            f"Expected shape of (2, N, {self.layers[0]}, 1), but got {training_data.shape}"
+            f"Expected shape of (N, 2, {self.layers[0]}, 1), but got {training_data.shape}"
 
-        per_epoch = len(training_data[0]) // batch_size
+        per_epoch = len(training_data) // batch_size
 
         assert per_epoch != 0, "Batch Size greater than Data Set"
         for i in range(max_epochs):
@@ -222,7 +233,7 @@ class BaseNetwork:
 
     @staticmethod
     def format_unsupervised_input(input):
-        return np.array([input, input])
+        return np.stack([input, input], axis=1)
 
     def save_to_file(self, file: str):
         np.savez(file, weights=self.weights, biases=self.biases)
