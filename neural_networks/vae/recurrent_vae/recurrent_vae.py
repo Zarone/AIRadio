@@ -11,10 +11,6 @@ import math
 
 class RecurrentVAE(VAE):
 
-    INIT_GRADIENT_MAX = 30
-    INTERMEDIATE_GRADIENT_MAX = 50
-    GRADIENT_CUT_TO = 1
-
     def __init__(
         self,
         encoder_layers: Tuple[int, ...],
@@ -422,14 +418,6 @@ and Q is the length of the input layer.
                 dtype=np.float64
             )
 
-            # Just an attempt to prevent exploding gradient early
-            if (
-                dL_daL.max() > RecurrentVAE.INIT_GRADIENT_MAX or 
-                dL_daL.min() < -RecurrentVAE.INIT_GRADIENT_MAX
-            ):
-                gradient_magnitude = np.linalg.norm(dL_daL)
-                dL_daL = dL_daL * (RecurrentVAE.GRADIENT_CUT_TO/gradient_magnitude)
-
             last_layer_index = len(activation_values[j]) - 1
             decoder_stop_layer = len(self.encoder_layers) - 2
 
@@ -581,15 +569,6 @@ and Q is the length of the input layer.
         output_dL_dz = np.matmul(
             local_weights.T, dL_dz
         ) * activation_derivative_func(z_layer)
-
-        if (
-            output_dL_dz.max() > RecurrentVAE.INTERMEDIATE_GRADIENT_MAX or 
-            output_dL_dz.min() < -RecurrentVAE.INTERMEDIATE_GRADIENT_MAX
-        ):
-            gradient_magnitude = np.linalg.norm(output_dL_dz)
-            print(f"BOUNDING GRADIENT WITH MAGNITUDE {gradient_magnitude}")
-            output_dL_dz = output_dL_dz * (RecurrentVAE.GRADIENT_CUT_TO/gradient_magnitude)
-
 
         return (weight_gradient, bias_gradient, output_dL_dz)
 

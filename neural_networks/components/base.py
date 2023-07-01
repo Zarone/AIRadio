@@ -126,7 +126,13 @@ class BaseNetwork:
 
         training_data = np.array(_training_data, copy=True)
 
-        per_epoch = len(training_data) // batch_size
+        print(training_data.shape)
+        assert training_data.shape[0] == 2\
+            and training_data.shape[2] == self.layers[0]\
+            and training_data.shape[3] == 1,\
+            f"Expected shape of (2, N, {self.layers[0]}, 1), but got {training_data.shape}"
+
+        per_epoch = len(training_data[0]) // batch_size
 
         assert per_epoch != 0, "Batch Size greater than Data Set"
         for i in range(max_epochs):

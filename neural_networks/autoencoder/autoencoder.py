@@ -37,7 +37,7 @@ class AutoEncoder(BaseNetwork):
     ):
         training_data = np.stack((_training_data, _training_data), axis=1)
         formatted_test_data = None
-        if not test_data is None:
+        if test_data is not None:
             formatted_test_data = np.stack((test_data, test_data), axis=1)
         super().train(
             training_data,

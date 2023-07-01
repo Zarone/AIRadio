@@ -1,18 +1,11 @@
-from neural_networks.components.optimizer.optimizer import Optimizer
-from neural_networks.components.optimizer.SGD import SGD
-from tools.network_tester import *
 import audio_parsing.audio_parsing as audio
-from compression.compression import compress, COMPRESSION_1_INFO, decompress, train_compressor
-from neural_networks.vae.recurrent_vae.recurrent_vae import RecurrentVAE
-import numpy as np
-import typing
+from neural_networks.components.base import BaseNetwork
 
 AMPLITUDE_SCALE = 1
+NUM_AMPLITUDES = 5
+NUM_FILES = 6
 
-# MAX_AMPLITUDES = -1
-MAX_AMPLITUDES = 50
-
-sounds, names = audio.get_raw_data(5, MAX_AMPLITUDES, AMPLITUDE_SCALE)
+sounds, names = audio.get_raw_data(NUM_FILES, NUM_AMPLITUDES, AMPLITUDE_SCALE)
 
 # # This is just a way to test the sound data
 # song = audio.play_random_sound(sounds, names, AMPLITUDE_SCALE)
@@ -33,7 +26,31 @@ sounds, names = audio.get_raw_data(5, MAX_AMPLITUDES, AMPLITUDE_SCALE)
 
 # audio.plot_audio_comparison(song, decompressed)
 
+network = BaseNetwork(layers=(5, 4, 3, 3, 3, 4, 5))
+network.train(
+    # sounds,
+    network.format_unsupervised_input(sounds),
+    batch_size=6,
+    max_epochs=5000,
+    graph=True,
+    learning_rate=0.05
+)
 
-network: RecurrentVAE = RecurrentVAE((5, 4, 3, 3), (3, 3, 4, 5))
-time_seperated_sounds: np.ndarray = network.get_time_seperated_data(sounds)
-network.train(time_seperated_sounds, batch_size=5, max_epochs=5000, graph=True, learning_rate=0.001)
+# network: VAE = VAE(encoder_layers=(5, 3), decoder_layers=(3, 5))
+# network.train(
+    # sounds,
+    # batch_size=5,
+    # max_epochs=5000,
+    # graph=True,
+    # learning_rate=0.05
+# )
+
+# network: RecurrentVAE = RecurrentVAE((5, 4, 3, 3), (3, 3, 4, 5))
+# time_seperated_sounds: np.ndarray = network.get_time_seperated_data(sounds)
+# network.train(
+    # time_seperated_sounds,
+    # batch_size=5,
+    # max_epochs=5000,
+    # graph=True,
+    # learning_rate=0.05
+# )

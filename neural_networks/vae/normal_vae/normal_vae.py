@@ -118,7 +118,9 @@ class VAE(BaseNetwork):
             last_activations = input if i == 0 else activations[i-1]
 
             z_values[i], activations[i] = self.feedforward_layer(
-                i, last_activations)
+                i, last_activations, False
+            )
+
             i += 1
 
         last_activations = input if i == 0 else activations[-2]
@@ -166,7 +168,8 @@ class VAE(BaseNetwork):
             coef_index = i+len(self.encoder_layers)-1
 
             z_values[i], activations[i] = self.feedforward_layer(
-                coef_index, last_activations)
+                coef_index, last_activations, False
+            )
             i += 1
 
         last_activations = input if i == 0 else activations[-2]
@@ -214,7 +217,7 @@ class VAE(BaseNetwork):
                    title='Loss over time (Training Data)')
         axs[0].legend(loc="upper left")
         axs[0].grid()
-        axs[0].semilogy()
+        # axs[0].semilogy()
 
         if test_losses:
             axs[1].plot(test_losses, "purple", label="Total Loss")
@@ -225,7 +228,7 @@ class VAE(BaseNetwork):
                        title='Loss over time (Test Data)')
             axs[1].legend(loc="upper left")
             axs[1].grid()
-            axs[1].semilogy()
+            # axs[1].semilogy()
 
         plt.show()
 
