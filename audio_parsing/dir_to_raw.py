@@ -17,7 +17,9 @@ def get_raw_audio(location: str, max_elements: int, scale: float) -> np.ndarray:
   mean = np.mean(audio)
   current_std = np.std(audio) + epsilon_naught 
 
-  scaled_audio = (audio - mean) * (scale/current_std)
+  print("ADDED OFFSET OF 1 TO AUDIO DATA FOR TESTING ONLY")
+  print("PLEASE REMOVE THIS LATER ON")
+  scaled_audio = (audio - mean) * (scale/current_std) + 1
   global i
   print(f"Loaded audio from {location}, element {i}")
 

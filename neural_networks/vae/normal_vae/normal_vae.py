@@ -86,8 +86,10 @@ class VAE(BaseNetwork):
     def loss(self, y_true, y_pred, mu=np.array([0.0]), log_var=np.array([0.0])):
         n = y_true.shape[0]  # Number of samples
 
+        difference = y_true - y_pred
+
         # Reconstruction loss
-        reconstruction_loss = np.sum(np.square(y_true - y_pred)) / n
+        reconstruction_loss = np.sum(np.square(difference)) / n
 
         # Regularization term - KL divergence
         kl_loss = -0.5 * np.sum(1 + log_var -
@@ -188,7 +190,7 @@ class VAE(BaseNetwork):
         return self.decode(generated)
 
     def _gen(self, mu, log_variance) -> Tuple[np.ndarray, np.ndarray]:
-        epsilon = (np.random.randn(len(mu)).reshape(-1, 1))
+        epsilon = 0# np.random.randn(len(mu)).reshape(-1, 1)
         z = mu + np.exp(0.5 * log_variance) * epsilon
         return (z, epsilon)
 
@@ -205,8 +207,8 @@ class VAE(BaseNetwork):
         axs: Any = sub[1]
         if len(test_losses) == 0:
             axs = [axs]
-        axs[0].plot(losses, "purple", label="Total Loss")
-        axs[0].plot(kl_losses, "red", label="KL Divergence")
+        # axs[0].plot(losses, "purple", label="Total Loss")
+        # axs[0].plot(kl_losses, "red", label="KL Divergence")
         axs[0].plot(reconstruction_losses, "blue", label="Reconstruction Loss")
         axs[0].set(ylabel='Loss',
                    title='Loss over time (Training Data)')
@@ -284,7 +286,9 @@ class VAE(BaseNetwork):
     def training_step(self, batch, learning_rate, print_epochs):
         self.init_gradients()
 
-        assert (not self.weight_gradient is None and not self.bias_gradient is None), "Weight gradient not defined for some reason"
+        assert self.weight_gradient is not None and\
+            self.bias_gradient is not None,\
+            "Weight gradient not defined for some reason"
 
         reconstruction_loss = 0
         kl_loss = 0

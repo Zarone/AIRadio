@@ -71,7 +71,7 @@ class BaseNetwork:
 
         last_activations = input_val[0]
         for i, _ in enumerate(activations):
-            zs[i], activations[i] = self.feedforward_layer(i, last_activations)
+            zs[i], activations[i] = self.feedforward_layer(i, last_activations, i==len(activations)-1)
             last_activations = activations[i]
 
         return (zs, activations)
@@ -79,13 +79,11 @@ class BaseNetwork:
     def feedforward(self, input):
         return self._feedforward(input)[1][-1]
 
-    def feedforward_layer(self, i: int, last_activations: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def feedforward_layer(self, i: int, last_activations: np.ndarray, force_linear: bool) -> Tuple[np.ndarray, np.ndarray]:
         # z_{i} = w * a_{i-1} + b
         z = np.matmul(self.weights[i], last_activations) + self.biases[i]
 
-        is_last_layer = i == len(self.layers)-2
-
-        activation_function = self.activation if not is_last_layer else linear
+        activation_function = self.activation if not force_linear else linear
         return (z, activation_function(z))
 
     def loss(self, y_true, y_pred):

@@ -2,7 +2,7 @@ from neural_networks.vae.normal_vae.normal_vae import VAE
 import neural_networks.components.config as config
 from typing import Tuple
 from neural_networks.components.activations import\
-    leaky_relu, leaky_relu_derivative
+    leaky_relu, leaky_relu_derivative, linear_derivative
 from neural_networks.components.optimizer.adam import Adam
 from neural_networks.components.optimizer.optimizer import Optimizer
 import numpy as np
@@ -10,6 +10,10 @@ import math
 
 
 class RecurrentVAE(VAE):
+
+    INIT_GRADIENT_MAX = 30
+    INTERMEDIATE_GRADIENT_MAX = 50
+    GRADIENT_CUT_TO = 1
 
     def __init__(
         self,
@@ -130,32 +134,50 @@ class RecurrentVAE(VAE):
 
         activations = np.empty([iterations, num_layers-1], dtype=np.ndarray)
         z_values = np.empty([iterations, num_layers-1], dtype=np.ndarray)
+
         epsilon = np.empty(
             [iterations-1, self.hidden_state_size, 1],
             dtype=np.float64
         )
+
         combined_inputs = np.empty(
             (iterations, ),
             dtype=np.ndarray
         )
 
         last_activations = np.concatenate(
-            (input_value[0], np.empty((self.hidden_state_size, 1))))
+            (
+                input_value[0], 
+                np.zeros( (self.hidden_state_size, 1) )
+            )
+        )
         combined_inputs[0] = last_activations
         for iter in range(0, iterations):
             for layer in range(0, len(self.encoder_layers)-1):
-                z_values[iter][layer], activations[iter][layer] = self.feedforward_layer(
-                    layer, last_activations)
+                z_values[iter][layer], activations[iter][layer] = \
+                    self.feedforward_layer(
+                        layer, last_activations, force_linear=layer==len(self.encoder_layers)-2
+                    )
                 last_activations = activations[iter][layer]
 
             if iter != iterations-1:
-                new_hidden_state, epsilon[iter] = \
-                    self._gen(
-                        activations[iter][-1][0:self.hidden_state_size], activations[iter][-1][self.hidden_state_size:self.hidden_state_size*2]
-                )
+                # new_hidden_state, epsilon[iter] = \
+                    # self._gen(
+                        # activations[iter][-1][0:self.hidden_state_size],
+                        # activations[iter][-1][self.hidden_state_size:self.hidden_state_size*2]
+                    # )
+
+                # So if you wanted, you could use the generator to do this
+                # calculation, but, with the parameter being log variance,
+                # the activations inside the network could explode. I've
+                # opted to just pass the mean, mu, to the next iteration.
+                new_hidden_state = activations[iter][-1][
+                    0:self.hidden_state_size
+                ]
 
                 last_activations = np.concatenate(
-                    (input_value[iter+1], new_hidden_state))
+                    (input_value[iter+1], new_hidden_state)
+                )
                 combined_inputs[iter+1] = last_activations
         parameters_count = len(activations[-1][-1])//2
 
@@ -164,8 +186,7 @@ class RecurrentVAE(VAE):
             activations,
             activations[-1][-1][:parameters_count],
             activations[-1][-1][parameters_count:parameters_count*2],
-            combined_inputs,
-            epsilon
+            combined_inputs
         )
 
     def encode(self, input_value: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -176,7 +197,7 @@ class RecurrentVAE(VAE):
     the size of the input layer and M is the number of \
     iterations in the recurrent network.
         """
-        _, _, mu, logvar, _, _ = self._encode(input_value)
+        _, _, mu, logvar, _ = self._encode(input_value)
         return (mu, logvar)
 
     def _decode(self, input_value: np.ndarray, iterations: int) -> Tuple[np.ndarray, np.ndarray]:
@@ -186,29 +207,44 @@ class RecurrentVAE(VAE):
         :param input_value An (N, 1) vector representing the latent\
     space representation.
         """
-        assert len(
-            input_value.shape) == 2 and input_value.shape[1] == 1, f"Expected (N, 1) sized input, received {input_value.shape}"
+        assert len(input_value.shape) == 2 \
+            and input_value.shape[1] == 1, \
+            f"Expected (N, 1) sized input, received {input_value.shape}"
 
         num_layers = len(self.decoder_layers)-1
         output_layer_size = self.decoder_layers[-1]
 
         activations: np.ndarray = np.empty(
-            [iterations, num_layers], dtype=np.ndarray)
+            [iterations, num_layers], dtype=np.ndarray
+        )
         z_values: np.ndarray = np.empty(
-            [iterations, num_layers], dtype=np.ndarray)
+            [iterations, num_layers], dtype=np.ndarray
+        )
         last_output = np.zeros((output_layer_size, 1))
+
         last_activations: np.ndarray = np.concatenate(
-            (input_value, last_output))
+            (input_value, last_output)
+        )
+
+        combined_outputs = np.empty(
+            ( iterations, ), 
+            dtype=np.ndarray
+        )
+        combined_outputs[0] = last_activations
 
         for i in range(iterations):
             for j in range(0, num_layers):
                 coef_index = j+len(self.encoder_layers)-1
                 z_values[i][j], activations[i][j] = self.feedforward_layer(
-                    coef_index, last_activations)
+                    coef_index, last_activations, j == num_layers-1
+                )
                 last_activations = activations[i][j]
-            last_activations = np.concatenate((input_value, last_activations))
-
-        return (z_values, activations)
+            concat = np.concatenate((input_value, last_activations))
+            last_activations = concat
+            if i != iterations - 1:
+                combined_outputs[i+1] = concat
+        pass
+        return (z_values, activations, combined_outputs)
 
     def decode(self, input_value: np.ndarray, iterations: int) -> np.ndarray:
         """This function takes an (N, 1) vector representing the latent\
@@ -232,15 +268,16 @@ class RecurrentVAE(VAE):
     ) -> None:
         """This function trains the neural networks on a dataset variable.
 
-        :param _training_data A numpy array of length N where each element is a (P,Q,1) \
-    shaped numpy array. N is the number of training examples, P is the number of iterations, \
-    and Q is the length of the input layer.
+        :param _training_data A numpy array of length N where \
+each element is a (P,Q,1) shaped numpy array. N is the \
+number of training examples, P is the number of iterations, \
+and Q is the length of the input layer.
         """
 
-        assert len(
-            _training_data.shape) == 1, f"Expected training data with shape (N, ), but got {_training_data.shape}"
-        assert len(
-            _training_data[0].shape) == 3, f"Expected training data point with shape (P,Q,1) but got {_training_data[0].shape}"
+        assert len(_training_data.shape) == 1,\
+            f"Expected training data with shape (N, ), but got {_training_data.shape}"
+        assert len(_training_data[0].shape) == 3,\
+            f"Expected training data point with shape (P,Q,1) but got {_training_data[0].shape}"
 
         losses = []
         kl_losses = []
@@ -262,38 +299,38 @@ class RecurrentVAE(VAE):
                 batch = training_data[index:index+batch_size]
 
                 reconstruction_loss, kl_loss = self.training_step(
-                    batch, learning_rate, print_epochs)
+                    batch, learning_rate, print_epochs
+                )
 
                 kl_losses.append(kl_loss)
                 reconstruction_losses.append(reconstruction_loss)
                 loss = kl_loss+reconstruction_loss
                 losses.append(loss)
 
-                test_loss = 0
-                if not (test_data is None) and print_epochs:
-                    test_reconstruction_loss = 0
-                    test_kl_loss = 0
-                    for index, element in enumerate(test_data):
-                        mu, logvar = self.encode(element)
-                        generated = self.gen(mu, logvar)
-                        delta_test_reconstruction_loss, delta_test_kl_loss = self.loss(
-                            element, self.decode(generated)[1][-1], mu, logvar)
-                        test_reconstruction_loss += delta_test_reconstruction_loss
-                        test_kl_loss += delta_test_kl_loss
-                    test_loss = test_reconstruction_loss + test_kl_loss
+                # test_loss = 0
+                # if not (test_data is None) and print_epochs:
+                #     test_reconstruction_loss = 0
+                #     test_kl_loss = 0
+                #     for index, element in enumerate(test_data):
+                #         mu, logvar = self.encode(element)
+                #         generated = self.gen(mu, logvar)
+                #         delta_test_reconstruction_loss, delta_test_kl_loss = self.loss(
+                #             element, self.decode(generated)[1][-1], mu, logvar)
+                #         test_reconstruction_loss += delta_test_reconstruction_loss
+                #         test_kl_loss += delta_test_kl_loss
+                #     test_loss = test_reconstruction_loss + test_kl_loss
 
-                    test_loss /= len(test_data)
-                    test_kl_loss /= len(test_data)
-                    test_reconstruction_loss /= len(test_data)
+                #     test_loss /= len(test_data)
+                #     test_kl_loss /= len(test_data)
+                #     test_reconstruction_loss /= len(test_data)
 
-                    test_losses.append(test_loss)
-                    test_kl_losses.append(test_kl_loss)
-                    test_reconstruction_losses.append(test_reconstruction_loss)
+                #     test_losses.append(test_loss)
+                #     test_kl_losses.append(test_kl_loss)
+                #     test_reconstruction_losses.append(test_reconstruction_loss)
 
                 if print_epochs:
-                    print(
-                        f"Epoch {i}, Mini-Batch {j}: Loss = {loss}, Test Loss = {test_loss}")
-                    # print(f"Epoch {i}, Mini-Batch {j}: KL Loss = {kl_loss}, Reconstruction Loss = {reconstruction_loss}")
+                    # print(f"Epoch {i}, Mini-Batch {j}: Loss = {loss}, Test Loss = {test_loss}")
+                    print(f"Epoch {i}, Mini-Batch {j}: KL Loss = {kl_loss}, Reconstruction Loss = {reconstruction_loss}")
         if graph:
             self.graph_loss(losses, reconstruction_losses, kl_losses,
                             test_losses, test_reconstruction_losses, test_kl_losses)
@@ -301,7 +338,9 @@ class RecurrentVAE(VAE):
     def training_step(self, batch, learning_rate, print_epochs):
         self.init_gradients()
 
-        assert (not self.weight_gradient is None and not self.bias_gradient is None), "Weight gradient not defined for some reason"
+        assert self.weight_gradient is not None and\
+            self.bias_gradient is not None,\
+            "Weight gradient not defined for some reason"
 
         reconstruction_loss = 0
         kl_loss = 0
@@ -312,55 +351,94 @@ class RecurrentVAE(VAE):
         Beta = 1
 
         for i, data_point in enumerate(batch):
-            print(f"data_point {i}")
+            delta_reconstruction_loss, delta_kl_loss = \
+                self.training_data_point(i, data_point, Beta, print_epochs)
 
-            z1, a1, mu, log_variance, decoder_inputs, epsilon_encoder = self._encode(
-                data_point)
-            generated, epsilon = self._gen(mu, log_variance)
-            z2, a2 = self._decode(generated, len(data_point))
+            reconstruction_loss += delta_reconstruction_loss
+            kl_loss += delta_kl_loss
 
-            # This is just for readability later on
-            z_values = np.concatenate((z1.T, z2.T)).T
-            activation_values = np.concatenate((a1.T, a2.T)).T
+        
+        self.weights -= \
+            (learning_rate / len(batch)) * \
+            self.optimizer.adjusted_weight_gradient(self.weight_gradient)
 
-            mu_logvar_values = z_values[:, len(
-                self.encoder_layers)-2][0:self.decoder_layers[0]]
-            mu_values = np.array([x[0:self.decoder_layers[0]]
-                                 for x in mu_logvar_values])
-            logvar_values = np.array(
-                [x[self.decoder_layers[0]:] for x in mu_logvar_values])
+        self.biases -= \
+            (learning_rate / len(batch)) * \
+            self.optimizer.adjusted_bias_gradient(self.bias_gradient)
 
-            # This is because it simplifies backpropagation calculations
-            z_values[:, len(self.encoder_layers)-2] = decoder_inputs[:]
-            activation_values[:, len(
-                self.encoder_layers)-2] = decoder_inputs[:]
+        return (reconstruction_loss/len(batch), kl_loss/len(batch))
 
-            # for j, time_step in enumerate(data_point):
-            j = len(data_point)-1
-            time_step = data_point[-1]
-            print(f"time step {j}")
+    def training_data_point(
+        self,
+        i,
+        data_point,
+        Beta,
+        print_epochs=False
+    ):
+        z1, a1, mu, log_variance, encoder_outputs = \
+            self._encode(data_point)
+        generated, epsilon = self._gen(mu, log_variance)
+        z2, a2, decoder_outputs = self._decode(generated, len(data_point))
 
-            # Backpropagate through decoder
-            # Find starting dL_dz, set last_dL_dz to this
-            # For each time step
-            # For each layer to first hidden layer in decoder
-            # weight_gradient, output_dL_dz += backpropagate(layer, last_dL_dz, activations, ...)
-            # where output_dL_dz is the dL_dz for the output of the last timestep
-            # set last_dL_dz to output_dL_dz
-            # Find dL_dmu, dL_dlogvar like before. Get dL_dz from this
-            # set last_dL_dz to that dL_dz from dL_dmu and dL_dlogar
-            # For each time step
-            # For each layer to first hidden layer in encoder
-            # weight_gradient, output_dL_dz += backpropagate(layer, last_dL_dz, activations, ...)
-            # where output_dL_dz is the dL_dz for the output of the last timestep
-            # set last_dL_dz to output_dL_dz
+        # This is just for readability later on
+        z_values = np.concatenate((z1.T, z2.T)).T
+        activation_values = np.concatenate((a1.T, a2.T)).T
 
-            dL_daL = np.array((activation_values[j][-1] - time_step) * (
-                2/len(activation_values[j][-1])), dtype=np.float64)
+        mu_logvar_values = z_values[
+            :, len(self.encoder_layers)-2
+        ][
+            0:self.decoder_layers[0]
+        ]
 
-            last_layer_index = len(self.weights) - 1
+        mu_values = np.array(
+            [x[0:self.decoder_layers[0]] for x in mu_logvar_values]
+        )
+        logvar_values = np.array(
+            [x[self.decoder_layers[0]:] for x in mu_logvar_values]
+        )
+
+        # This is because it simplifies backpropagation calculations
+        z_values[:, len(self.encoder_layers)-2] = decoder_outputs[:]
+        activation_values[:, len(
+            self.encoder_layers)-2] = decoder_outputs[:]
+
+        reconstruction_loss = 0
+        kl_loss = 0
+        for j, time_step in enumerate(data_point):
+            guess = activation_values[j][-1]
+            if print_epochs:
+                pass
+                delta_reconstruction_loss, delta_kl_loss = self.loss(
+                    time_step, guess, mu, log_variance
+                )
+                reconstruction_loss += delta_reconstruction_loss
+                kl_loss += delta_kl_loss
+
+            dL_daL = np.array(
+                (
+                    (guess - time_step) *
+                    (2/len(guess))
+                ),
+                dtype=np.float64
+            )
+
+            # Just an attempt to prevent exploding gradient early
+            if (
+                dL_daL.max() > RecurrentVAE.INIT_GRADIENT_MAX or 
+                dL_daL.min() < -RecurrentVAE.INIT_GRADIENT_MAX
+            ):
+                gradient_magnitude = np.linalg.norm(dL_daL)
+                dL_daL = dL_daL * (RecurrentVAE.GRADIENT_CUT_TO/gradient_magnitude)
+
+            last_layer_index = len(activation_values[j]) - 1
             decoder_stop_layer = len(self.encoder_layers) - 2
 
+            # `self.weight_gradient` and `self.bias_gradient` are updated
+            # inside of `self.backpropagate...` functions
+
+            # Backpropagates through time, from the output layer
+            # to the start of the decoder.
+            
             # Backpropagates through time, from the output layer
             # to the start of the decoder.
             last_dL_dz = self.backpropagate_through_time(
@@ -372,36 +450,33 @@ class RecurrentVAE(VAE):
                 activation_values
             )
 
-            # ∂L/∂mu = ∂L/∂z_n * ∂z_n/∂a_(n-1) * ∂a_(n-1)/∂mu + ∂L/∂D * ∂D/∂mu
-            #        = ∂L/∂z_n * w_n           * 1            + 1     * mu/N
-            #        = ∂L/∂z_n * w_n + mu/N
-            dL_dmu = last_dL_dz + Beta*mu/self.latent_size
+            # # Backpropagates through the layer in the network between
+            # # the encoder and the decoder.
+            # last_dL_dz = self.backpropagate_through_generator(
+            #     last_dL_dz,
+            #     0,#Beta,
+            #     mu,
+            #     log_variance,
+            #     epsilon
+            # )
 
-            # ∂L/∂logvar = ∂L/∂z_n * ∂z_n/∂a_(n-1) * ∂a_(n-1)/∂logvar                + ∂L/∂D   * ∂D/∂logvar
-            #            = ∂L/∂z_n * w_n           * epsilon / 2*np.exp(logvar/2)    + 1       * (1-np.exp(logvar))/2N
-            #            = ∂L/∂z_n * w_n * epsilon/2*np.exp(logvar/2) - (1-np.exp(logvar))/2N
-            dL_dlogvar = \
-                last_dL_dz \
-                * epsilon/2*np.exp(log_variance/2) \
-                - Beta*(1-np.exp(log_variance))/self.latent_size/2
+            # # Backpropagates through time, from the start of the decoder
+            # # to the beggining layer.
+            # last_dL_dz = self.backpropagate_through_time(
+            #     len(data_point)-1,
+            #     decoder_stop_layer,  # first layer (inclusive)
+            #     -1,  # last layer (exclusive)
+            #     last_dL_dz,
+            #     z_values,
+            #     activation_values,
+            #     iter_input=encoder_outputs,
+            #     Beta=Beta,
+            #     mu=mu_values,
+            #     log_variance=logvar_values,
+            #     epsilon=None  # epsilon_encoder
+            # )
 
-            last_dL_dz = np.concatenate((dL_dmu, dL_dlogvar), axis=0)
-
-            last_dL_dz = self.backpropagate_through_time(
-                j,
-                decoder_stop_layer,  # first layer (inclusive)
-                -1,  # last layer (exclusive)
-                last_dL_dz,
-                z_values,
-                activation_values,
-                iter_input=z_values[:, len(self.encoder_layers)-2],
-                Beta=Beta,
-                mu=mu_values,
-                log_variance=logvar_values,
-                epsilon=epsilon_encoder
-            )
-
-        return (0, 0)
+        return (reconstruction_loss, kl_loss)
 
     def backpropagate_through_time(
         self,
@@ -430,26 +505,28 @@ class RecurrentVAE(VAE):
         """
         last_dL_dz = start_dL_dz
 
-        assert (not self.weight_gradient is None and not self.bias_gradient is None), "Weight gradient not defined for some reason"
+        assert (
+            self.weight_gradient is not None and
+            self.bias_gradient is not None
+        ), "Weight gradient not defined for some reason"
 
         for i in range(time_start, -1, -1):
-            print(f"backprop time step {i}")
-
             for layer in range(start_layer, end_layer, -1):
-                print(f"layer {layer}")
                 z_layer = z_values[i][layer-1]
                 a_layer = activation_values[i][layer-1]
                 if layer == 0:
                     assert iter_input is not None,\
                         "iter_input expected but not provided"
-                    z_layer = iter_input[i-1]
-                    a_layer = iter_input[i-1]
+                    z_layer = iter_input[i]
+                    a_layer = iter_input[i]
+
                 delta_weight_gradient, delta_bias_gradient, last_dL_dz =\
                     self.backpropagate_layer(
                         layer,
                         last_dL_dz,
                         z_layer,
-                        a_layer
+                        a_layer,
+                        layer == len(self.encoder_layers)-1
                     )
                 self.weight_gradient[layer] += delta_weight_gradient
                 self.bias_gradient[layer] += delta_bias_gradient
@@ -469,20 +546,20 @@ class RecurrentVAE(VAE):
             elif end_layer == -1:
                 assert (Beta is not None)\
                     and (mu is not None)\
-                    and (log_variance is not None)\
-                    and (epsilon is not None),\
+                    and (log_variance is not None),\
                     "Beta, mu, log variance, and epsilon not passed to method"
 
                 # We only need to include the derivatives with
                 # respect to state, not input
                 last_dL_dz = last_dL_dz[self.encoder_layers[0]:]
-                dL_dmu = last_dL_dz + Beta*mu[i]/self.latent_size
-                dL_dlogvar = \
-                    last_dL_dz \
-                    * epsilon[i-1]/2*np.exp(log_variance[i]/2) \
-                    - Beta*(1-np.exp(log_variance[i]))/self.latent_size/2
-                last_dL_dz = np.concatenate(
-                    (dL_dmu, dL_dlogvar), axis=0, dtype=np.float64)
+
+                last_dL_dz = self.backpropagate_through_generator(
+                    last_dL_dz,
+                    0,  # No point in training to lower intermediate mu
+                    mu[i],
+                    log_variance[i],
+                    0
+                )
 
         return last_dL_dz
 
@@ -491,17 +568,48 @@ class RecurrentVAE(VAE):
         layer: int,
         dL_dz: np.ndarray,
         z_layer: np.ndarray,
-        a_layer: np.ndarray
+        a_layer: np.ndarray,
+        force_linear: bool = False
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
 
-        activation_derivative_func = self.activation_derivative
+        activation_derivative_func = self.activation_derivative if not force_linear else linear_derivative
+
+        weight_gradient = np.matmul(dL_dz, a_layer.T)
+        bias_gradient = dL_dz
 
         local_weights = self.weights[layer]
         output_dL_dz = np.matmul(
             local_weights.T, dL_dz
         ) * activation_derivative_func(z_layer)
 
-        weight_gradient = np.matmul(dL_dz, a_layer.T)
-        bias_gradient = dL_dz
+        if (
+            output_dL_dz.max() > RecurrentVAE.INTERMEDIATE_GRADIENT_MAX or 
+            output_dL_dz.min() < -RecurrentVAE.INTERMEDIATE_GRADIENT_MAX
+        ):
+            gradient_magnitude = np.linalg.norm(output_dL_dz)
+            print(f"BOUNDING GRADIENT WITH MAGNITUDE {gradient_magnitude}")
+            output_dL_dz = output_dL_dz * (RecurrentVAE.GRADIENT_CUT_TO/gradient_magnitude)
+
 
         return (weight_gradient, bias_gradient, output_dL_dz)
+
+    def backpropagate_through_generator(
+        self,
+        last_dL_dz,
+        Beta,
+        mu,
+        log_variance,
+        epsilon
+    ):
+        # This calculation is derived by taking the partial
+        # derivative of loss with respect to mu.
+        dL_dmu = last_dL_dz + Beta*mu/self.latent_size
+
+        # This calculation is derived by taking the partial
+        # derivative of loss with respect to logvar.
+        dL_dlogvar = \
+            last_dL_dz \
+            * epsilon/2*np.exp(log_variance/2) \
+            - Beta*(1-np.exp(log_variance))/self.latent_size/2
+
+        return np.concatenate((dL_dmu, dL_dlogvar), axis=0)

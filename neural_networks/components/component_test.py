@@ -89,7 +89,10 @@ def component_test(Tester):
         expected_z = np.array([8, 16])
         expected_activation = np.array([8, 16])
         module.tester("Network Feedforward 1", module.eq(
-            network.feedforward_layer(0, inputs), (expected_z, expected_activation)))
+                network.feedforward_layer(0, inputs, False), 
+                (expected_z, expected_activation)
+            )
+        )
 
         # Test for feedforward full
         network.layers = (2, 2)
