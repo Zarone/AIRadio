@@ -137,10 +137,8 @@ class BaseNetwork:
 
         training_data = np.array(_training_data, copy=True)
 
-        print(training_data.shape)
         assert training_data.shape[1] == 2\
-            and training_data.shape[2] == self.layers[0]\
-            and training_data.shape[3] == 1,\
+            and training_data.shape[2] == self.layers[0],\
             f"Expected shape of (N, 2, {self.layers[0]}, 1), but got {training_data.shape}"
 
         per_epoch = len(training_data) // batch_size

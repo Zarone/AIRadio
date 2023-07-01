@@ -89,7 +89,7 @@ def component_test(Tester):
         expected_z = np.array([8, 16])
         expected_activation = np.array([8, 16])
         module.tester("Network Feedforward 1", module.eq(
-                network.feedforward_layer(0, inputs, False), 
+                network.feedforward_layer(0, inputs, False),
                 (expected_z, expected_activation)
             )
         )
@@ -102,7 +102,7 @@ def component_test(Tester):
         module.tester(
             "Network Feedforward 2",
             module.eq(
-                network._feedforward(network.format_unsupervised_input(inputs)),
+                network._feedforward(np.array([inputs, inputs])),
                 (expected_zs, expected_activations)
             )
         )
@@ -113,7 +113,7 @@ def component_test(Tester):
         module.tester(
             "Network Feedforward 3",
             module.eq(
-                network.feedforward(network.format_unsupervised_input(inputs)),
+                network.feedforward(np.array([inputs, inputs])),
                 expected_output
             )
         )
@@ -122,8 +122,21 @@ def component_test(Tester):
         y_true = np.array([1, 0])
         y_pred = np.array([0.2, 0.7])
         expected_loss = np.sum(np.square(y_true - y_pred)) / len(y_true)
-        module.tester("Network Loss", module.eq(network.loss(
-            network.format_unsupervised_input(y_true), y_pred), (expected_loss,)))
+        module.tester(
+            "Network Loss",
+            module.eq(
+                network.loss(np.array([y_true, y_true]), y_pred),
+                (expected_loss,)
+            )
+        )
 
-        network.train(np.array([[[1, 2], [2, 4]], [[3, 4], [6, 8]], [
-                      [5, 6], [10, 12]]]), 1, 3, print_epochs=False)
+        network.train(
+            np.array(
+                [
+                    [[1, 2], [2, 4]],
+                    [[3, 4], [6, 8]],
+                    [[5, 6], [10, 12]]
+                ]
+            ), 1, 3,
+            print_epochs=False
+        )

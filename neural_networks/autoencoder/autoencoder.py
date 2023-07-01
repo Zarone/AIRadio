@@ -50,7 +50,7 @@ class AutoEncoder(BaseNetwork):
         )
 
     def feedforward(self, input):
-        return super().feedforward(self.format_unsupervised_input(input))
+        return super().feedforward(np.array([input, input]))
 
     def encode(self, input):
         activations: List = [None] * (self.latent_layer)
