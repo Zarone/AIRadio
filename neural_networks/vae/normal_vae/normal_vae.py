@@ -17,7 +17,7 @@ class VAE(BaseNetwork):
         decoder_layers: Tuple[int, ...],
         activation=leaky_relu,
         activation_derivative=leaky_relu_derivative,
-        optimizer: Optimizer = Adam()
+        optimizer: Optimizer = Adam(loss_taperoff=True)
     ) -> None:
         assert encoder_layers[-1] == decoder_layers[0],\
             "Initialized VAE with inconsistent latent space size"
@@ -217,7 +217,7 @@ class VAE(BaseNetwork):
                    title='Loss over time (Training Data)')
         axs[0].legend(loc="upper left")
         axs[0].grid()
-        # axs[0].semilogy()
+        axs[0].semilogy()
 
         if test_losses:
             axs[1].plot(test_losses, "purple", label="Total Loss")
@@ -228,7 +228,7 @@ class VAE(BaseNetwork):
                        title='Loss over time (Test Data)')
             axs[1].legend(loc="upper left")
             axs[1].grid()
-            # axs[1].semilogy()
+            axs[1].semilogy()
 
         plt.show()
 
@@ -279,9 +279,12 @@ class VAE(BaseNetwork):
                     test_reconstruction_losses.append(test_reconstruction_loss)
 
                 if print_epochs:
+                    # print(
+                        # f"Epoch {i}, Mini-Batch {j}: Loss = {loss}, Test Loss = {test_loss}"
+                    # )
                     print(
-                        f"Epoch {i}, Mini-Batch {j}: Loss = {loss}, Test Loss = {test_loss}")
-                    # print(f"Epoch {i}, Mini-Batch {j}: KL Loss = {kl_loss}, Reconstruction Loss = {reconstruction_loss}")
+                        f"Epoch {i}, Mini-Batch {j}: KL Loss = {kl_loss}, Reconstruction Loss = {reconstruction_loss}"
+                    )
         if graph:
             self.graph_loss(losses, reconstruction_losses, kl_losses,
                             test_losses, test_reconstruction_losses, test_kl_losses)
@@ -299,7 +302,7 @@ class VAE(BaseNetwork):
         # Beta affects the relative importance of kl_loss
         # with respect to reconstruction_loss in calculating
         # the gradient.
-        Beta = 1
+        Beta = 0
 
         for _, data_point in enumerate(batch):
             z1, a1, mu, log_variance = self._encode(data_point)
@@ -382,7 +385,7 @@ class VAE(BaseNetwork):
             self.bias_gradient[0] += decoder_gradients_z[0]
 
         self.weights -= learning_rate / \
-            len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient)
+            len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient, reconstruction_loss)
         self.biases -= learning_rate / \
-            len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient)
+            len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient, reconstruction_loss)
         return reconstruction_loss/len(batch), kl_loss/len(batch)

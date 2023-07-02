@@ -8,7 +8,6 @@ from neural_networks.components.optimizer.optimizer import Optimizer
 import numpy as np
 import math
 
-
 class RecurrentVAE(VAE):
 
     def __init__(
@@ -17,7 +16,7 @@ class RecurrentVAE(VAE):
         decoder_layers: Tuple[int, ...],
         activation=leaky_relu,
         activation_derivative=leaky_relu_derivative,
-        optimizer: Optimizer = Adam()
+        optimizer: Optimizer = Adam(loss_taperoff=True)
     ) -> None:
         self.hidden_state_size = encoder_layers[-1]
         super().__init__(
@@ -39,6 +38,10 @@ class RecurrentVAE(VAE):
 
         self.layers = e_layers[0:-1] + d_layers
 
+        tmp_layers = list(self.layers)
+        tmp_layers[0] = tmp_layers[0] + self.hidden_state_size
+        tmp_layers[len(self.encoder_layers)-1] *= 2
+
         length = len(e_layers) + len(d_layers) - 2
 
         self.biases: np.ndarray = np.empty(length, dtype=np.ndarray)
@@ -49,54 +52,42 @@ class RecurrentVAE(VAE):
         # Input to first hidden layer (Includes the fact that
         # the hidden state is passed into the first hidden layer
         # in the encoder)
-        max = math.sqrt(2 / e_layers[index])
-        min = -max
-        self.biases[index] = config.rng.uniform(
-            min, max, (e_layers[index+1], 1))
-        self.weights[index] = config.rng.uniform(
-            min, max, (e_layers[index+1], e_layers[index]+self.hidden_state_size))
-        index += 1
 
         # Encoder layers
-        for _ in range(1, len(e_layers)-2):
-            max = math.sqrt(2 / e_layers[index])
-            min = -max
-            self.biases[index] = config.rng.uniform(
-                min, max, (e_layers[index+1], 1))
-            self.weights[index] = config.rng.uniform(
-                min, max, (e_layers[index+1], e_layers[index]))
+        for _ in range(0, len(e_layers)-1, 1):
+            max = self.get_init_param(e_layers[index])
+            print(f"i {index}")
+            print(f"{e_layers[index+1]} by {tmp_layers[index]}")
+            self.biases[index] = config.rng.normal(
+                0, max, (tmp_layers[index+1], 1)
+            )
+            self.weights[index] = config.rng.normal(
+                0, max, (tmp_layers[index+1], tmp_layers[index])
+            )
             index += 1
 
-        max = math.sqrt(2 / e_layers[index])
-        min = -max
-
-        # Encoder to latent space
-        self.biases[index] = config.rng.uniform(
-            min, max, (e_layers[index+1]*2, 1))
-        self.weights[index] = config.rng.uniform(
-            min, max, (e_layers[index+1]*2, e_layers[index]))
-        index += 1
-
-        max = math.sqrt(2 / d_layers[0])
-        min = -max
-
+        max = self.get_init_param(d_layers[0])
         # Sample to Decoder (Includes the fact that
         # the output of iteration n-1 is passed into
         # the first hidden layer in decoder)
-        self.biases[index] = config.rng.uniform(min, max, (d_layers[1], 1))
-        self.weights[index] = config.rng.uniform(
-            min, max, (d_layers[1], d_layers[0]+d_layers[-1]))
+        self.biases[index] = config.rng.normal(0, max, (d_layers[1], 1))
+        self.weights[index] = config.rng.normal(
+            0, max, (d_layers[1], d_layers[0]+d_layers[-1]))
         index += 1
 
         # Decoder layers
         for _ in range(0, len(d_layers)-2):
             max = math.sqrt(2 / d_layers[index+1-len(e_layers)])
-            min = -max
-            self.biases[index] = config.rng.uniform(
-                min, max, (d_layers[index+2-len(e_layers)], 1))
-            self.weights[index] = config.rng.uniform(
-                min, max, (d_layers[index+2-len(e_layers)], d_layers[index+1-len(e_layers)]))
+            self.biases[index] = config.rng.normal(
+                0, max, (d_layers[index+2-len(e_layers)], 1))
+            self.weights[index] = config.rng.normal(
+                0, max, (d_layers[index+2-len(e_layers)], d_layers[index+1-len(e_layers)]))
             index += 1
+
+    def feedforward(self, input: np.ndarray) -> np.ndarray:
+        mu, log_variance = self.encode(input)
+        generated = self.gen(mu, log_variance)
+        return self.decode(generated, len(input))
 
     def get_time_seperated_data(self, input_data):
         """This function divides the input data into evenly sized vectors\
@@ -344,7 +335,7 @@ and Q is the length of the input layer.
         # Beta affects the relative importance of kl_loss
         # with respect to reconstruction_loss in calculating
         # the gradient.
-        Beta = 1
+        Beta = 0
 
         for i, data_point in enumerate(batch):
             delta_reconstruction_loss, delta_kl_loss = \
@@ -353,16 +344,19 @@ and Q is the length of the input layer.
             reconstruction_loss += delta_reconstruction_loss
             kl_loss += delta_kl_loss
 
+        len_batch = len(batch)
+        reconstruction_loss /= len_batch
+        kl_loss /= len(batch)
         
         self.weights -= \
             (learning_rate / len(batch)) * \
-            self.optimizer.adjusted_weight_gradient(self.weight_gradient)
+            self.optimizer.adjusted_weight_gradient(self.weight_gradient, reconstruction_loss)
 
         self.biases -= \
             (learning_rate / len(batch)) * \
-            self.optimizer.adjusted_bias_gradient(self.bias_gradient)
+            self.optimizer.adjusted_bias_gradient(self.bias_gradient, reconstruction_loss)
 
-        return (reconstruction_loss/len(batch), kl_loss/len(batch))
+        return (reconstruction_loss, kl_loss)
 
     def training_data_point(
         self,
@@ -371,6 +365,7 @@ and Q is the length of the input layer.
         Beta,
         print_epochs=False
     ):
+        pass
         z1, a1, mu, log_variance, encoder_outputs = \
             self._encode(data_point)
         generated, epsilon = self._gen(mu, log_variance)
@@ -400,6 +395,9 @@ and Q is the length of the input layer.
 
         reconstruction_loss = 0
         kl_loss = 0
+
+        total_iterations = len(data_point)
+
         for j, time_step in enumerate(data_point):
             guess = activation_values[j][-1]
             if print_epochs:
@@ -407,13 +405,13 @@ and Q is the length of the input layer.
                 delta_reconstruction_loss, delta_kl_loss = self.loss(
                     time_step, guess, mu, log_variance
                 )
-                reconstruction_loss += delta_reconstruction_loss
-                kl_loss += delta_kl_loss
+                reconstruction_loss += delta_reconstruction_loss / total_iterations
+                kl_loss += delta_kl_loss / total_iterations
 
             dL_daL = np.array(
                 (
                     (guess - time_step) *
-                    (2/len(guess))
+                    (2/len(guess)/total_iterations)
                 ),
                 dtype=np.float64
             )

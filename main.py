@@ -1,8 +1,11 @@
 import audio_parsing.audio_parsing as audio
 from neural_networks.components.base import BaseNetwork
+from neural_networks.vae.normal_vae.normal_vae import VAE
+from neural_networks.vae.recurrent_vae.recurrent_vae import RecurrentVAE
+from neural_networks.components.optimizer.adam import Adam
 
-AMPLITUDE_SCALE = 10
-NUM_AMPLITUDES = 5
+AMPLITUDE_SCALE = 1
+NUM_AMPLITUDES = 15
 NUM_FILES = 5
 
 sounds, names = audio.get_raw_data(NUM_FILES, NUM_AMPLITUDES, AMPLITUDE_SCALE)
@@ -26,49 +29,43 @@ sounds, names = audio.get_raw_data(NUM_FILES, NUM_AMPLITUDES, AMPLITUDE_SCALE)
 
 # audio.plot_audio_comparison(song, decompressed)
 
-print("sounds[0]")
-print(sounds[0])
+# network = BaseNetwork(
+    # layers=(5, 4, 3, 3, 3, 4, 5),
+    # optimizer=Adam(loss_taperoff=True)
+# )
+# formatted_sounds = network.format_unsupervised_input(sounds)
 
-network = BaseNetwork(layers=(5, 4, 3, 3, 3, 4, 5))
+# network.train(
+    # formatted_sounds,
+    # batch_size=5,
+    # max_epochs=20000,
+    # graph=True,
+    # learning_rate=0.01
+# )
 
-formatted_sounds = network.format_unsupervised_input(sounds)
-
-print("formatted_sounds[0][0]")
-print(formatted_sounds[0][0])
-
-network.train(
-    formatted_sounds,
-    batch_size=5,
-    max_epochs=5000,
-    graph=True,
-    learning_rate=0.0005
-)
-
-decoded = network.feedforward(formatted_sounds[:, 0])
-
-print("decoded")
-print(decoded)
-
-print("formatted_sounds[0][0]")
-print(formatted_sounds[0][0])
-
-audio.plot_audio_comparison(formatted_sounds[0][0], decoded)
-
-# network: VAE = VAE(encoder_layers=(5, 3), decoder_layers=(3, 5))
+# network: VAE = VAE(encoder_layers=(5, 4, 3, 3), decoder_layers=(3, 3, 4, 5))
 # network.train(
     # sounds,
     # batch_size=5,
-    # max_epochs=5000,
+    # max_epochs=20000,
     # graph=True,
-    # learning_rate=0.05
+    # learning_rate=0.01
 # )
 
-# network: RecurrentVAE = RecurrentVAE((5, 4, 3, 3), (3, 3, 4, 5))
-# time_seperated_sounds: np.ndarray = network.get_time_seperated_data(sounds)
-# network.train(
-    # time_seperated_sounds,
-    # batch_size=5,
-    # max_epochs=5000,
-    # graph=True,
-    # learning_rate=0.05
-# )
+network: RecurrentVAE = RecurrentVAE(
+    (5, 10), (10, 5),
+    optimizer=Adam(loss_taperoff=True)
+)
+time_separated_sounds = network.get_time_seperated_data(sounds)
+network.train(
+    time_separated_sounds,
+    batch_size=5,
+    max_epochs=20000,
+    graph=True,
+    learning_rate=0.05
+)
+
+print("time_separated_sounds[0]")
+print(time_separated_sounds[0])
+print("network.feedforward(time_separated_sounds[0])")
+print(network.feedforward(time_separated_sounds[0]))

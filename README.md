@@ -1,13 +1,8 @@
 # AI Radio
 
 ## To Do
-- Basic VAE Setup
-- Create mini VAE
-  - Take N momentary amplitudes of the sound clips, and then train that to be compressed to N′ dimensional latent space.
-  - I could even test using multiple of these, if there is just too much data at runtime.
 - Create Recursive VAE
-  - Start with basic (element-wise) loss function.
-    - This is for testing, and for comparison later on.
+  - Abstract the loss function and initial gradient so that it can be connected to GAN Later.
 - Create GAN
 - Create Web UI
   - Probably going to be in NextJS or a similar framework.

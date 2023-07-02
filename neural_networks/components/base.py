@@ -23,7 +23,7 @@ class BaseNetwork:
         layers: Tuple[int, ...],
         activation=leaky_relu,
         activation_derivative=leaky_relu_derivative,
-        optimizer: Optimizer = Adam()
+        optimizer: Optimizer = Adam(loss_taperoff=True)
     ) -> None:
         self.optimizer = optimizer
         self.activation = activation
@@ -35,10 +35,9 @@ class BaseNetwork:
         self.weight_gradient = None
         self.bias_gradient = None
 
-    def get_init_param_minmax(self, index):
-        max = math.sqrt(2/self.layers[index])
-        min = -max
-        return min, max
+    def get_init_param(self, layer_size):
+        max = math.sqrt(2/layer_size)
+        return max
 
     def init_coefficients(self, layers: Tuple[int, ...]) -> None:
         self.layers = layers
@@ -48,11 +47,13 @@ class BaseNetwork:
         self.weights: np.ndarray = np.array([None] * num_layers)
 
         for i in range(num_layers):
-            max = math.sqrt(2/layers[i])
-            min = -max
-            self.biases[i] = config.rng.uniform(min, max, (layers[i+1], 1))
-            self.weights[i] = config.rng.uniform(
-                min, max, (layers[i+1], layers[i]))
+            max = self.get_init_param(layers[i])
+            self.biases[i] = config.rng.normal(
+                0, max, (layers[i+1], 1)
+            )
+            self.weights[i] = config.rng.normal(
+                0, max, (layers[i+1], layers[i])
+            )
 
     def _feedforward(self, input_val: np.ndarray) -> Tuple[List, List]:
         """This functions takes an input and returns the z values 
@@ -224,9 +225,9 @@ class BaseNetwork:
             self.bias_gradient[0] += decoder_gradients_z[0]
 
         self.weights -= learning_rate / \
-            len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient)
+            len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient, reconstruction_loss)
         self.biases -= learning_rate / \
-            len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient)
+            len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient, reconstruction_loss)
         return (reconstruction_loss/len(batch),)
 
     @staticmethod
