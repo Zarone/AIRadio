@@ -8,6 +8,7 @@ from neural_networks.components.optimizer.optimizer import Optimizer
 import numpy as np
 import math
 
+
 class RecurrentVAE(VAE):
 
     def __init__(
@@ -56,8 +57,6 @@ class RecurrentVAE(VAE):
         # Encoder layers
         for _ in range(0, len(e_layers)-1, 1):
             max = self.get_init_param(e_layers[index])
-            print(f"i {index}")
-            print(f"{e_layers[index+1]} by {tmp_layers[index]}")
             self.biases[index] = config.rng.normal(
                 0, max, (tmp_layers[index+1], 1)
             )
@@ -347,7 +346,7 @@ and Q is the length of the input layer.
         len_batch = len(batch)
         reconstruction_loss /= len_batch
         kl_loss /= len(batch)
-        
+
         self.weights -= \
             (learning_rate / len(batch)) * \
             self.optimizer.adjusted_weight_gradient(self.weight_gradient, reconstruction_loss)
@@ -377,8 +376,6 @@ and Q is the length of the input layer.
 
         mu_logvar_values = z_values[
             :, len(self.encoder_layers)-2
-        ][
-            0:self.decoder_layers[0]
         ]
 
         mu_values = np.array(
@@ -397,6 +394,10 @@ and Q is the length of the input layer.
         kl_loss = 0
 
         total_iterations = len(data_point)
+
+        dL_dlatent_space = np.zeros(
+            (self.hidden_state_size*2, 1), dtype=np.float64
+        )
 
         for j, time_step in enumerate(data_point):
             guess = activation_values[j][-1]
@@ -424,9 +425,6 @@ and Q is the length of the input layer.
 
             # Backpropagates through time, from the output layer
             # to the start of the decoder.
-            
-            # Backpropagates through time, from the output layer
-            # to the start of the decoder.
             last_dL_dz = self.backpropagate_through_time(
                 j,
                 last_layer_index,  # first layer (inclusive)
@@ -436,32 +434,47 @@ and Q is the length of the input layer.
                 activation_values
             )
 
-            # # Backpropagates through the layer in the network between
-            # # the encoder and the decoder.
-            # last_dL_dz = self.backpropagate_through_generator(
-            #     last_dL_dz,
-            #     0,#Beta,
-            #     mu,
-            #     log_variance,
-            #     epsilon
-            # )
+            # print(f"i {i}, j {j}, 1")
+            # print("self.weight_gradient")
+            # print(self.weight_gradient)
+            # print("self.bias_gradient")
+            # print(self.bias_gradient)
 
-            # # Backpropagates through time, from the start of the decoder
-            # # to the beggining layer.
-            # last_dL_dz = self.backpropagate_through_time(
-            #     len(data_point)-1,
-            #     decoder_stop_layer,  # first layer (inclusive)
-            #     -1,  # last layer (exclusive)
-            #     last_dL_dz,
-            #     z_values,
-            #     activation_values,
-            #     iter_input=encoder_outputs,
-            #     Beta=Beta,
-            #     mu=mu_values,
-            #     log_variance=logvar_values,
-            #     epsilon=None  # epsilon_encoder
-            # )
+            # Backpropagates through the layer in the network between
+            # the encoder and the decoder.
+            dL_dlatent_space += self.backpropagate_through_generator(
+                last_dL_dz,
+                Beta,
+                mu,
+                log_variance,
+                epsilon
+            )
 
+            # print(f"i {i}, j {j}, 2")
+            # print("dL_dlatent_space")
+            # print(dL_dlatent_space)
+
+        # Backpropagates through time, from the start of the decoder
+        # to the beggining layer.
+        last_dL_dz = self.backpropagate_through_time(
+            len(data_point)-1,
+            decoder_stop_layer,  # first layer (inclusive)
+            -1,  # last layer (exclusive)
+            dL_dlatent_space,
+            z_values,
+            activation_values,
+            iter_input=encoder_outputs,
+            Beta=Beta,
+            mu=mu_values,
+            log_variance=logvar_values,
+            epsilon=None  # epsilon_encoder
+        )
+
+        # print(f"i {i}, 3")
+        # print("self.weight_gradient")
+        # print(self.weight_gradient)
+        # print("self.bias_gradient")
+        # print(self.bias_gradient)
         return (reconstruction_loss, kl_loss)
 
     def backpropagate_through_time(
@@ -529,7 +542,7 @@ and Q is the length of the input layer.
                     last_dL_dz = last_dL_dz[self.hidden_state_size:]
                 else:
                     last_dL_dz = last_dL_dz[:self.hidden_state_size]
-            elif end_layer == -1:
+            elif end_layer == -1 and i != 0:
                 assert (Beta is not None)\
                     and (mu is not None)\
                     and (log_variance is not None),\
@@ -542,8 +555,8 @@ and Q is the length of the input layer.
                 last_dL_dz = self.backpropagate_through_generator(
                     last_dL_dz,
                     0,  # No point in training to lower intermediate mu
-                    mu[i],
-                    log_variance[i],
+                    mu[i-1],
+                    log_variance[i-1],
                     0
                 )
 
@@ -558,7 +571,8 @@ and Q is the length of the input layer.
         force_linear: bool = False
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
 
-        activation_derivative_func = self.activation_derivative if not force_linear else linear_derivative
+        activation_derivative_func = self.activation_derivative\
+            if not force_linear else linear_derivative
 
         weight_gradient = np.matmul(dL_dz, a_layer.T)
         bias_gradient = dL_dz

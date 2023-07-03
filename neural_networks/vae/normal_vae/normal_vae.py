@@ -92,8 +92,7 @@ class VAE(BaseNetwork):
         reconstruction_loss = np.sum(np.square(difference)) / n
 
         # Regularization term - KL divergence
-        kl_loss = -0.5 * np.sum(1 + log_var -
-                                np.square(mu) - np.exp(log_var)) / len(mu)
+        kl_loss = -0.5 * np.sum(1 + log_var - np.square(mu) - np.exp(log_var)) / len(mu)
 
         return (reconstruction_loss, kl_loss)
 
@@ -193,8 +192,8 @@ class VAE(BaseNetwork):
         return self.decode(generated)
 
     def _gen(self, mu, log_variance) -> Tuple[np.ndarray, np.ndarray]:
-        epsilon = 0# np.random.randn(len(mu)).reshape(-1, 1)
-        z = mu + np.exp(0.5 * log_variance) * epsilon
+        epsilon = np.random.randn(len(mu)).reshape(-1, 1)
+        z = mu #+ np.exp(0.5 * log_variance) * epsilon
         return (z, epsilon)
 
     def gen(self, mu, log_variance) -> np.ndarray:

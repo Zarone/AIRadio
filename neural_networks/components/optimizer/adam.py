@@ -36,7 +36,8 @@ class Adam(Optimizer):
         self.s_dw = self.Beta2 * self.s_dw + \
             (1-self.Beta2) * np.square(weight_gradient)
 
-        taper_off = min(loss, 1) if self.experiental_loss_taperoff else 1
+        taper_off = min(loss, 1)\
+            if self.experiental_loss_taperoff else 1
 
         # Multiplying by the square root of loss is just
         # so that we can get precision for small data sets.
@@ -60,7 +61,8 @@ class Adam(Optimizer):
         self.s_db = self.Beta2 * self.s_db + \
             (1-self.Beta2) * np.square(bias_gradient)
 
-        taper_off = min(loss, 1) if self.experiental_loss_taperoff else 1
+        taper_off = min(loss, 1)\
+            if self.experiental_loss_taperoff else 1
 
         return self.v_db * Adam.SQRT(
             taper_off / (self.s_db + Adam.EPSILON_NAUGHT)

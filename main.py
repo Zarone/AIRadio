@@ -5,7 +5,7 @@ from neural_networks.vae.recurrent_vae.recurrent_vae import RecurrentVAE
 from neural_networks.components.optimizer.adam import Adam
 
 AMPLITUDE_SCALE = 1
-NUM_AMPLITUDES = 15
+NUM_AMPLITUDES = 40
 NUM_FILES = 5
 
 sounds, names = audio.get_raw_data(NUM_FILES, NUM_AMPLITUDES, AMPLITUDE_SCALE)
@@ -52,9 +52,12 @@ sounds, names = audio.get_raw_data(NUM_FILES, NUM_AMPLITUDES, AMPLITUDE_SCALE)
     # learning_rate=0.01
 # )
 
+from neural_networks.components.activations import relu, relu_derivative, sigmoid, sigmoid_derivative
 network: RecurrentVAE = RecurrentVAE(
-    (5, 10), (10, 5),
-    optimizer=Adam(loss_taperoff=True)
+    (5, 4, 3, 3), (3, 3, 4, 5),
+    optimizer=Adam(loss_taperoff=True),
+    activation=relu,
+    activation_derivative=relu_derivative
 )
 time_separated_sounds = network.get_time_seperated_data(sounds)
 network.train(
@@ -62,7 +65,7 @@ network.train(
     batch_size=5,
     max_epochs=20000,
     graph=True,
-    learning_rate=0.05
+    learning_rate=0.001
 )
 
 print("time_separated_sounds[0]")
