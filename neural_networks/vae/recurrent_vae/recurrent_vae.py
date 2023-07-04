@@ -15,11 +15,27 @@ class RecurrentVAE(VAE):
         self,
         encoder_layers: Tuple[int, ...],
         decoder_layers: Tuple[int, ...],
+        latent_recurrent_layers: Tuple[int, ...],
+        output_recurrent_layers: Tuple[int, ...],
         activation=leaky_relu,
         activation_derivative=leaky_relu_derivative,
         optimizer: Optimizer = Adam(loss_taperoff=True)
     ) -> None:
         self.hidden_state_size = encoder_layers[-1]
+        self.latent_recurrent_layers = latent_recurrent_layers
+        self.output_recurrent_layers = output_recurrent_layers
+
+        assert latent_recurrent_layers[0] == self.hidden_state_size\
+            and latent_recurrent_layers[-1] == self.hidden_state_size,\
+            "Expected latent_recurrent_layers to have a first and last value equal to hidden layer size"
+
+        assert output_recurrent_layers[0] == decoder_layers[-1]\
+            and output_recurrent_layers[-1] == decoder_layers[-1],\
+            "Expected output_recurrent_layers to have a first and last value equal to output size"
+
+        assert len(latent_recurrent_layers) > 1 and len(output_recurrent_layers) > 1,\
+            "Expected recurrent layers to have size greater than 1"
+
         super().__init__(
             encoder_layers,
             decoder_layers,
@@ -28,25 +44,21 @@ class RecurrentVAE(VAE):
             optimizer
         )
 
-    def init_coefficients(
-        self,
-        e_layers: Tuple[int, ...],
-        d_layers: Tuple[int, ...]
-    ) -> None:
-        self.encoder_layers = e_layers
-        self.decoder_layers = d_layers
-        self.latent_size = d_layers[0]
-
-        self.layers = e_layers[0:-1] + d_layers
-
+    def init_coefficients(self) -> None:
         tmp_layers = list(self.layers)
         tmp_layers[0] = tmp_layers[0] + self.hidden_state_size
         tmp_layers[len(self.encoder_layers)-1] *= 2
 
-        length = len(e_layers) + len(d_layers) - 2
+        length = len(self.encoder_layers) + len(self.decoder_layers) - 2
 
         self.biases: np.ndarray = np.empty(length, dtype=np.ndarray)
         self.weights: np.ndarray = np.empty(length, dtype=np.ndarray)
+        latent_len = len(self.latent_recurrent_layers) - 1
+        self.latent_biases: np.ndarray = np.empty(latent_len, dtype=np.ndarray)
+        self.latent_weights: np.ndarray = np.empty(latent_len, dtype=np.ndarray)
+        output_len = len(self.output_recurrent_layers) - 1
+        self.output_biases: np.ndarray = np.empty(output_len, dtype=np.ndarray)
+        self.output_weights: np.ndarray = np.empty(output_len, dtype=np.ndarray)
 
         index = 0
 
@@ -55,33 +67,61 @@ class RecurrentVAE(VAE):
         # in the encoder)
 
         # Encoder layers
-        for _ in range(0, len(e_layers)-1, 1):
-            max = self.get_init_param(e_layers[index])
-            self.biases[index] = config.rng.normal(
-                0, max, (tmp_layers[index+1], 1)
+        for i in range(0, len(self.encoder_layers)-1, 1):
+            max = self.get_init_param(tmp_layers[i])
+            self.biases[i] = config.rng.normal(
+                0, max, (tmp_layers[i+1], 1)
             )
-            self.weights[index] = config.rng.normal(
-                0, max, (tmp_layers[index+1], tmp_layers[index])
+            self.weights[i] = config.rng.normal(
+                0, max, (tmp_layers[i+1], tmp_layers[i])
             )
-            index += 1
 
-        max = self.get_init_param(d_layers[0])
         # Sample to Decoder (Includes the fact that
         # the output of iteration n-1 is passed into
         # the first hidden layer in decoder)
-        self.biases[index] = config.rng.normal(0, max, (d_layers[1], 1))
+        max = self.get_init_param(self.decoder_layers[0]+self.decoder_layers[-1])
+        index = len(self.encoder_layers) - 1
+        self.biases[index] = config.rng.normal(0, max, (self.decoder_layers[1], 1))
         self.weights[index] = config.rng.normal(
-            0, max, (d_layers[1], d_layers[0]+d_layers[-1]))
+            0, max, (self.decoder_layers[1], self.decoder_layers[0]+self.decoder_layers[-1])
+        )
         index += 1
 
         # Decoder layers
-        for _ in range(0, len(d_layers)-2):
-            max = math.sqrt(2 / d_layers[index+1-len(e_layers)])
-            self.biases[index] = config.rng.normal(
-                0, max, (d_layers[index+2-len(e_layers)], 1))
-            self.weights[index] = config.rng.normal(
-                0, max, (d_layers[index+2-len(e_layers)], d_layers[index+1-len(e_layers)]))
-            index += 1
+        for i in range(index, len(tmp_layers)-1):
+            max = math.sqrt(2 / tmp_layers[i])
+            self.biases[i] = config.rng.normal(
+                0, max, (tmp_layers[i+1], 1))
+            self.weights[i] = config.rng.normal(
+                0, max, (tmp_layers[i+1], tmp_layers[i]))
+
+        # Latent recurrent layers
+        for i in range(len(self.latent_recurrent_layers)-1):
+            max = math.sqrt(2 / self.latent_recurrent_layers[i+1])
+            self.latent_biases[i] = config.rng.normal(
+                0, max, (self.latent_recurrent_layers[i+1], 1)
+            )
+            self.latent_weights[i] = config.rng.normal(
+                0, max, (
+                    self.latent_recurrent_layers[i+1],
+                    self.latent_recurrent_layers[i]
+                )
+            )
+
+        # Output recurrent layers
+        for i in range(len(self.output_recurrent_layers)-1):
+            max = math.sqrt(2 / self.output_recurrent_layers[i+1])
+            self.output_biases[i] = config.rng.normal(
+                0, max, (
+                    self.output_recurrent_layers[i+1], 1
+                )
+            )
+            self.output_weights[i] = config.rng.normal(
+                0, max, (
+                    self.output_recurrent_layers[i+1],
+                    self.output_recurrent_layers[i]
+                )
+            )
 
     def feedforward(self, input: np.ndarray) -> np.ndarray:
         mu, log_variance = self.encode(input)
@@ -95,7 +135,8 @@ class RecurrentVAE(VAE):
         input_layer_size = self.encoder_layers[0]
         input_data_size = input_data[0].shape[0]
 
-        assert input_data_size % input_layer_size == 0, "Input data cannot be divided evenly into input layer"
+        assert input_data_size % input_layer_size == 0,\
+            "Input data cannot be divided evenly into input layer"
 
         return_array = np.empty((len(input_data),), dtype=np.ndarray)
         for i, data_point in enumerate(input_data):
@@ -104,7 +145,52 @@ class RecurrentVAE(VAE):
 
         return return_array
 
-    def _encode(self, input_value: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def _feedforward_with_params(
+        self,
+        init_vector,
+        weights,
+        biases
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        z_values = np.empty(
+            (len(weights)+1, ),
+            dtype=np.ndarray
+        )
+        a_values = np.empty(
+            (len(weights)+1, ),
+            dtype=np.ndarray
+        )
+        z_values[0] = init_vector
+        a_values[0] = init_vector
+
+        for i in range(len(self.latent_recurrent_layers)-1):
+            z_values[i+1] = np.matmul(
+                weights[i], a_values[i]
+            ) + biases[i]
+            a_values[i+1] = self.activation(z_values[i+1])
+
+        return z_values, a_values
+
+    def _latent_to_latent(self, latent_vector):
+        return self._feedforward_with_params(
+            latent_vector,
+            self.latent_weights,
+            self.latent_biases
+        )
+
+    def _output_to_output(self, output):
+        return self._feedforward_with_params(
+            output,
+            self.output_weights,
+            self.output_biases
+        )
+
+    def _encode(
+        self,
+        input_value: np.ndarray
+    ) -> Tuple[
+        np.ndarray, np.ndarray, np.ndarray, 
+        np.ndarray, np.ndarray, np.ndarray
+    ]:
         """This function takes an input vector and returns all \
     internally relevant variables after feedforward to latent space.
 
@@ -121,37 +207,49 @@ class RecurrentVAE(VAE):
         activations = np.empty([iterations, num_layers-1], dtype=np.ndarray)
         z_values = np.empty([iterations, num_layers-1], dtype=np.ndarray)
 
+        last_activations = np.concatenate(
+            (
+                input_value[0],
+                np.zeros((self.hidden_state_size, 1))
+            )
+        )
+
+        # This data is needed for backpropagation later
+        latent_recurrent_intermediete = np.empty(
+            (iterations-1, ),
+            np.ndarray
+        )
+
+        # This data is needed for backpropagation later
         epsilon = np.empty(
             [iterations-1, self.hidden_state_size, 1],
             dtype=np.float64
         )
 
+        # This data is needed for backpropagation later
         combined_inputs = np.empty(
             (iterations, ),
             dtype=np.ndarray
         )
 
-        last_activations = np.concatenate(
-            (
-                input_value[0], 
-                np.zeros( (self.hidden_state_size, 1) )
-            )
-        )
         combined_inputs[0] = last_activations
         for iter in range(0, iterations):
             for layer in range(0, len(self.encoder_layers)-1):
                 z_values[iter][layer], activations[iter][layer] = \
                     self.feedforward_layer(
-                        layer, last_activations, force_linear=layer==len(self.encoder_layers)-2
+                        layer, last_activations,
+                        force_linear=layer == len(self.encoder_layers)-2
                     )
                 last_activations = activations[iter][layer]
 
             if iter != iterations-1:
-                # new_hidden_state, epsilon[iter] = \
-                    # self._gen(
-                        # activations[iter][-1][0:self.hidden_state_size],
-                        # activations[iter][-1][self.hidden_state_size:self.hidden_state_size*2]
-                    # )
+                """
+                new_hidden_state, epsilon[iter] = \
+                    self._gen(
+                        activations[iter][-1][0:self.hidden_state_size],
+                        activations[iter][-1][self.hidden_state_size:self.hidden_state_size*2]
+                    )
+                """
 
                 # So if you wanted, you could use the generator to do this
                 # calculation, but, with the parameter being log variance,
@@ -160,6 +258,11 @@ class RecurrentVAE(VAE):
                 new_hidden_state = activations[iter][-1][
                     0:self.hidden_state_size
                 ]
+
+                latent_recurrent_intermediete[iter] = self._latent_to_latent(
+                    new_hidden_state
+                )
+                new_hidden_state = latent_recurrent_intermediete[iter][1][-1]
 
                 last_activations = np.concatenate(
                     (input_value[iter+1], new_hidden_state)
@@ -172,7 +275,8 @@ class RecurrentVAE(VAE):
             activations,
             activations[-1][-1][:parameters_count],
             activations[-1][-1][parameters_count:parameters_count*2],
-            combined_inputs
+            combined_inputs,
+            latent_recurrent_intermediete
         )
 
     def encode(self, input_value: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -183,7 +287,7 @@ class RecurrentVAE(VAE):
     the size of the input layer and M is the number of \
     iterations in the recurrent network.
         """
-        _, _, mu, logvar, _ = self._encode(input_value)
+        _, _, mu, logvar, _, _ = self._encode(input_value)
         return (mu, logvar)
 
     def _decode(self, input_value: np.ndarray, iterations: int) -> Tuple[np.ndarray, np.ndarray]:
@@ -212,10 +316,18 @@ class RecurrentVAE(VAE):
             (input_value, last_output)
         )
 
+        # This data is needed for backpropagation later
         combined_outputs = np.empty(
-            ( iterations, ), 
+            (iterations, ),
             dtype=np.ndarray
         )
+
+        # This data is needed for backpropagation later
+        output_recurrent_intermediete = np.empty(
+            (iterations-1, ),
+            np.ndarray
+        )
+
         combined_outputs[0] = last_activations
 
         for i in range(iterations):
@@ -225,12 +337,23 @@ class RecurrentVAE(VAE):
                     coef_index, last_activations, j == num_layers-1
                 )
                 last_activations = activations[i][j]
-            concat = np.concatenate((input_value, last_activations))
-            last_activations = concat
             if i != iterations - 1:
+                output_recurrent_intermediete[i] = self._output_to_output(
+                    last_activations
+                )
+                pass
+                concat = np.concatenate(
+                    (input_value, output_recurrent_intermediete[i][1][-1])
+                )
+                last_activations = concat
                 combined_outputs[i+1] = concat
-        pass
-        return (z_values, activations, combined_outputs)
+
+        return (
+            z_values,
+            activations,
+            combined_outputs,
+            output_recurrent_intermediete
+        )
 
     def decode(self, input_value: np.ndarray, iterations: int) -> np.ndarray:
         """This function takes an (N, 1) vector representing the latent\
@@ -364,11 +487,10 @@ and Q is the length of the input layer.
         Beta,
         print_epochs=False
     ):
-        pass
-        z1, a1, mu, log_variance, encoder_outputs = \
+        z1, a1, mu, log_variance, encoder_outputs, l_recur = \
             self._encode(data_point)
         generated, epsilon = self._gen(mu, log_variance)
-        z2, a2, decoder_outputs = self._decode(generated, len(data_point))
+        z2, a2, decoder_outputs, o_recur = self._decode(generated, len(data_point))
 
         # This is just for readability later on
         z_values = np.concatenate((z1.T, z2.T)).T
@@ -381,6 +503,7 @@ and Q is the length of the input layer.
         mu_values = np.array(
             [x[0:self.decoder_layers[0]] for x in mu_logvar_values]
         )
+
         logvar_values = np.array(
             [x[self.decoder_layers[0]:] for x in mu_logvar_values]
         )
@@ -396,13 +519,12 @@ and Q is the length of the input layer.
         total_iterations = len(data_point)
 
         dL_dlatent_space = np.zeros(
-            (self.hidden_state_size*2, 1), dtype=np.float64
+            (self.hidden_state_size, 1), dtype=np.float64
         )
 
         for j, time_step in enumerate(data_point):
             guess = activation_values[j][-1]
             if print_epochs:
-                pass
                 delta_reconstruction_loss, delta_kl_loss = self.loss(
                     time_step, guess, mu, log_variance
                 )
@@ -425,34 +547,28 @@ and Q is the length of the input layer.
 
             # Backpropagates through time, from the output layer
             # to the start of the decoder.
-            last_dL_dz = self.backpropagate_through_time(
+
+            dL_dlatent_space += self.backpropagate_through_time(
                 j,
                 last_layer_index,  # first layer (inclusive)
                 decoder_stop_layer,  # last layer (exclusive)
                 dL_daL,
                 z_values,
-                activation_values
+                activation_values,
+                l_recur,
+                o_recur
             )
 
-            # print(f"i {i}, j {j}, 1")
-            # print("self.weight_gradient")
-            # print(self.weight_gradient)
-            # print("self.bias_gradient")
-            # print(self.bias_gradient)
-
-            # Backpropagates through the layer in the network between
-            # the encoder and the decoder.
-            dL_dlatent_space += self.backpropagate_through_generator(
-                last_dL_dz,
-                Beta,
-                mu,
-                log_variance,
-                epsilon
-            )
-
-            # print(f"i {i}, j {j}, 2")
-            # print("dL_dlatent_space")
-            # print(dL_dlatent_space)
+        """
+        # Backpropagates through the layer in the network between
+        # the encoder and the decoder.
+        last_dL_dz = self.backpropagate_through_generator(
+            dL_dlatent_space,
+            0,#Beta,
+            mu,
+            log_variance,
+            0#epsilon
+        )
 
         # Backpropagates through time, from the start of the decoder
         # to the beggining layer.
@@ -460,7 +576,7 @@ and Q is the length of the input layer.
             len(data_point)-1,
             decoder_stop_layer,  # first layer (inclusive)
             -1,  # last layer (exclusive)
-            dL_dlatent_space,
+            last_dL_dz,
             z_values,
             activation_values,
             iter_input=encoder_outputs,
@@ -469,12 +585,8 @@ and Q is the length of the input layer.
             log_variance=logvar_values,
             epsilon=None  # epsilon_encoder
         )
+        """
 
-        # print(f"i {i}, 3")
-        # print("self.weight_gradient")
-        # print(self.weight_gradient)
-        # print("self.bias_gradient")
-        # print(self.bias_gradient)
         return (reconstruction_loss, kl_loss)
 
     def backpropagate_through_time(
@@ -485,6 +597,8 @@ and Q is the length of the input layer.
         start_dL_dz: np.ndarray,
         z_values: np.ndarray,
         activation_values: np.ndarray,
+        l_recur,
+        o_recur,
         iter_input: (np.ndarray | None) = None,
         Beta=None,
         mu=None,
@@ -525,21 +639,25 @@ and Q is the length of the input layer.
                         last_dL_dz,
                         z_layer,
                         a_layer,
-                        layer == len(self.encoder_layers)-1
+                        layer == len(self.encoder_layers)-1 or layer == 0
                     )
                 self.weight_gradient[layer] += delta_weight_gradient
                 self.bias_gradient[layer] += delta_bias_gradient
+                # print(f"i = {i}, layer = {layer}, delta_weight_gradient")
+                # print(delta_weight_gradient)
 
             # If the backpropagation is through the decoder
             if end_layer > -1:
-                # If we keep going back through time
-                # then we're going to need to backpropagate
-                # through only the last output, which is in range
-                # [hidden_state_size to the end) and if we aren't
-                # then we backpropagate through the hidden state
-                # which is in range [0, hidden_state_size).
+                pass
+
+                # If the next iteration is going to be in the decoder
+                # then just set the derivative equal to the output.
                 if i != 0:
                     last_dL_dz = last_dL_dz[self.hidden_state_size:]
+                    # last_dL_dz = self.backpropagate_through_recursive_output(o_recur)
+                # If the next iteration is going to be in the encoder
+                # or latent space then the derivative should just be equals
+                # to the latent space derivative.
                 else:
                     last_dL_dz = last_dL_dz[:self.hidden_state_size]
             elif end_layer == -1 and i != 0:
@@ -584,6 +702,22 @@ and Q is the length of the input layer.
 
         return (weight_gradient, bias_gradient, output_dL_dz)
 
+    def backpropagate_custom_layer(
+        self,
+        dL_dz,
+        z_layer,
+        a_layer,
+        weights,
+    ):
+        weight_gradient = np.matmul(dL_dz, a_layer.T)
+        bias_gradient = dL_dz
+
+        output_dL_dz = np.matmul(
+            weights.T, dL_dz
+        ) * self.activation_derivative(z_layer)
+
+        return (weight_gradient, bias_gradient, output_dL_dz)
+
     def backpropagate_through_generator(
         self,
         last_dL_dz,
@@ -604,3 +738,24 @@ and Q is the length of the input layer.
             - Beta*(1-np.exp(log_variance))/self.latent_size/2
 
         return np.concatenate((dL_dmu, dL_dlogvar), axis=0)
+
+    def backpropagate_through_recursive_output(
+        self,
+        starting_dL_dz,
+        output_recur
+    ):
+        last_dL_dz = starting_dL_dz
+        for i in range(
+            len(self.output_recurrent_layers)-2, -1, -1
+        ):
+            delta_output_weight_gradient,\
+            delta_output_bias_gradient,\
+            last_dL_dz = self.backpropagate_custom_layer(
+                last_dL_dz,
+                output_recur[0][i],
+                output_recur[1][i],
+                self.output_weights[i],
+            )
+
+            self.output_weight_gradient[i] += delta_output_weight_gradient
+            self.output_bias_gradient[i] += delta_output_bias_gradient

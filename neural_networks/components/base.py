@@ -80,7 +80,12 @@ class BaseNetwork:
     def feedforward(self, input):
         return self._feedforward(input)[1][-1]
 
-    def feedforward_layer(self, i: int, last_activations: np.ndarray, force_linear: bool) -> Tuple[np.ndarray, np.ndarray]:
+    def feedforward_layer(
+        self,
+        i: int,
+        last_activations: np.ndarray,
+        force_linear: bool
+    ) -> Tuple[np.ndarray, np.ndarray]:
         # z_{i} = w * a_{i-1} + b
         z = np.matmul(self.weights[i], last_activations) + self.biases[i]
 

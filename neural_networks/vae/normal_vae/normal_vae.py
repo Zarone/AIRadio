@@ -25,19 +25,17 @@ class VAE(BaseNetwork):
         self.optimizer = optimizer
         self.activation = activation
         self.activation_derivative = activation_derivative
-        self.init_coefficients(encoder_layers, decoder_layers)
+        self.encoder_layers = encoder_layers
+        self.decoder_layers = decoder_layers
+        self.latent_size = self.decoder_layers[0]
+        self.layers = self.encoder_layers[0:-1] + self.decoder_layers
+        self.init_coefficients()
 
         self.weight_gradient = None
         self.bias_gradient = None
 
-    def init_coefficients(self, e_layers: Tuple[int, ...], d_layers: Tuple[int, ...]) -> None:
-        self.encoder_layers = e_layers
-        self.decoder_layers = d_layers
-        self.latent_size = d_layers[0]
-
-        self.layers = e_layers[0:-1] + d_layers
-
-        length = len(e_layers) + len(d_layers) - 2
+    def init_coefficients(self) -> None:
+        length = len(self.encoder_layers) + len(self.decoder_layers) - 2
 
         self.biases: np.ndarray = np.empty(length, dtype=np.ndarray)
         self.weights: np.ndarray = np.empty(length, dtype=np.ndarray)
@@ -45,42 +43,42 @@ class VAE(BaseNetwork):
         index = 0
 
         # Encoder layers
-        for _ in range(0, len(e_layers)-2):
-            max = math.sqrt(2 / e_layers[index])
+        for _ in range(0, len(self.encoder_layers)-2):
+            max = math.sqrt(2 / self.encoder_layers[index])
             min = -max
             self.biases[index] = config.rng.uniform(
-                min, max, (e_layers[index+1], 1))
+                min, max, (self.encoder_layers[index+1], 1))
             self.weights[index] = config.rng.uniform(
-                min, max, (e_layers[index+1], e_layers[index]))
+                min, max, (self.encoder_layers[index+1], self.encoder_layers[index]))
             index += 1
 
-        max = math.sqrt(2 / e_layers[index])
+        max = math.sqrt(2 / self.encoder_layers[index])
         min = -max
 
         # Encoder to latent space
         self.biases[index] = config.rng.uniform(
-            min, max, (e_layers[index+1]*2, 1))
+            min, max, (self.encoder_layers[index+1]*2, 1))
         self.weights[index] = config.rng.uniform(
-            min, max, (e_layers[index+1]*2, e_layers[index]))
+            min, max, (self.encoder_layers[index+1]*2, self.encoder_layers[index]))
         index += 1
 
-        max = math.sqrt(2 / d_layers[0])
+        max = math.sqrt(2 / self.decoder_layers[0])
         min = -max
 
         # Sample to Decoder
-        self.biases[index] = config.rng.uniform(min, max, (d_layers[1], 1))
+        self.biases[index] = config.rng.uniform(min, max, (self.decoder_layers[1], 1))
         self.weights[index] = config.rng.uniform(
-            min, max, (d_layers[1], d_layers[0]))
+            min, max, (self.decoder_layers[1], self.decoder_layers[0]))
         index += 1
 
         # Decoder layers
-        for _ in range(0, len(d_layers)-2):
-            max = math.sqrt(2 / d_layers[index+1-len(e_layers)])
+        for _ in range(0, len(self.decoder_layers)-2):
+            max = math.sqrt(2 / self.decoder_layers[index+1-len(self.encoder_layers)])
             min = -max
             self.biases[index] = config.rng.uniform(
-                min, max, (d_layers[index+2-len(e_layers)], 1))
+                min, max, (self.decoder_layers[index+2-len(self.encoder_layers)], 1))
             self.weights[index] = config.rng.uniform(
-                min, max, (d_layers[index+2-len(e_layers)], d_layers[index+1-len(e_layers)]))
+                min, max, (self.decoder_layers[index+2-len(self.encoder_layers)], self.decoder_layers[index+1-len(self.encoder_layers)]))
             index += 1
 
     def loss(self, y_true, y_pred, mu=np.array([0.0]), log_var=np.array([0.0])):
