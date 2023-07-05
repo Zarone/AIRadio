@@ -36,6 +36,11 @@ class RecurrentVAE(VAE):
         assert len(latent_recurrent_layers) > 1 and len(output_recurrent_layers) > 1,\
             "Expected recurrent layers to have size greater than 1"
 
+        self.output_weight_gradient = None
+        self.output_bias_gradient = None
+        self.latent_weight_gradient = None
+        self.latent_bias_gradient = None
+
         super().__init__(
             encoder_layers,
             decoder_layers,
@@ -238,7 +243,7 @@ class RecurrentVAE(VAE):
                 z_values[iter][layer], activations[iter][layer] = \
                     self.feedforward_layer(
                         layer, last_activations,
-                        force_linear=layer == len(self.encoder_layers)-2
+                        force_linear=False#layer == len(self.encoder_layers)-2
                     )
                 last_activations = activations[iter][layer]
 
@@ -444,8 +449,36 @@ and Q is the length of the input layer.
             self.graph_loss(losses, reconstruction_losses, kl_losses,
                             test_losses, test_reconstruction_losses, test_kl_losses)
 
+    def init_recurrent_gradient(self):
+        if self.output_weight_gradient is None or\
+        self.output_bias_gradient is None:
+            self.output_weight_gradient = np.empty(self.output_weights.shape, np.ndarray)
+            self.output_bias_gradient = np.empty(self.output_biases.shape, np.ndarray)
+
+        for i, _ in enumerate(self.output_weight_gradient):
+            self.output_weight_gradient[i] = np.zeros(
+                self.output_weights[i].shape
+            )
+            self.output_bias_gradient[i] = np.zeros(
+                self.output_biases[i].shape
+            )
+
+        if self.latent_weight_gradient is None or\
+        self.latent_bias_gradient is None:
+            self.latent_weight_gradient = np.empty(self.latent_weights.shape, np.ndarray)
+            self.latent_bias_gradient = np.empty(self.latent_biases.shape, np.ndarray)
+
+        for i, _ in enumerate(self.latent_weight_gradient):
+            self.latent_weight_gradient[i] = np.zeros(
+                self.latent_weights[i].shape
+            )
+            self.latent_bias_gradient[i] = np.zeros(
+                self.latent_biases[i].shape
+            )
+
     def training_step(self, batch, learning_rate, print_epochs):
         self.init_gradients()
+        self.init_recurrent_gradient()
 
         assert self.weight_gradient is not None and\
             self.bias_gradient is not None,\
@@ -470,14 +503,31 @@ and Q is the length of the input layer.
         reconstruction_loss /= len_batch
         kl_loss /= len(batch)
 
+        adjusted_learning_rate = learning_rate / len(batch)
         self.weights -= \
-            (learning_rate / len(batch)) * \
-            self.optimizer.adjusted_weight_gradient(self.weight_gradient, reconstruction_loss)
+            adjusted_learning_rate * \
+            self.optimizer.adjusted_gradient(0, self.weight_gradient, reconstruction_loss)
 
         self.biases -= \
-            (learning_rate / len(batch)) * \
-            self.optimizer.adjusted_bias_gradient(self.bias_gradient, reconstruction_loss)
+            adjusted_learning_rate * \
+            self.optimizer.adjusted_gradient(1, self.bias_gradient, reconstruction_loss)
 
+        self.output_weights -= \
+            adjusted_learning_rate * \
+            self.optimizer.adjusted_gradient(2, self.output_weight_gradient, reconstruction_loss)
+
+        self.output_biases -= \
+            adjusted_learning_rate * \
+            self.optimizer.adjusted_gradient(3, self.output_bias_gradient, reconstruction_loss)
+
+        self.latent_weights -= \
+            adjusted_learning_rate * \
+            self.optimizer.adjusted_gradient(4, self.latent_weight_gradient, reconstruction_loss)
+
+        self.latent_biases -= \
+            adjusted_learning_rate * \
+            self.optimizer.adjusted_gradient(5, self.latent_bias_gradient, reconstruction_loss)
+            
         return (reconstruction_loss, kl_loss)
 
     def training_data_point(
@@ -654,7 +704,11 @@ and Q is the length of the input layer.
                 # then just set the derivative equal to the output.
                 if i != 0:
                     last_dL_dz = last_dL_dz[self.hidden_state_size:]
-                    # last_dL_dz = self.backpropagate_through_recursive_output(o_recur)
+                    last_dL_dz = self.backpropagate_through_recursive_output(
+                        i,
+                        last_dL_dz,
+                        o_recur
+                    )
                 # If the next iteration is going to be in the encoder
                 # or latent space then the derivative should just be equals
                 # to the latent space derivative.
@@ -708,13 +762,17 @@ and Q is the length of the input layer.
         z_layer,
         a_layer,
         weights,
+        force_linear,
     ):
+        activation_derivative_func = self.activation_derivative\
+            if not force_linear else linear_derivative
+
         weight_gradient = np.matmul(dL_dz, a_layer.T)
         bias_gradient = dL_dz
 
         output_dL_dz = np.matmul(
             weights.T, dL_dz
-        ) * self.activation_derivative(z_layer)
+        ) * activation_derivative_func(z_layer)
 
         return (weight_gradient, bias_gradient, output_dL_dz)
 
@@ -741,6 +799,7 @@ and Q is the length of the input layer.
 
     def backpropagate_through_recursive_output(
         self,
+        time_stamp,
         starting_dL_dz,
         output_recur
     ):
@@ -752,10 +811,12 @@ and Q is the length of the input layer.
             delta_output_bias_gradient,\
             last_dL_dz = self.backpropagate_custom_layer(
                 last_dL_dz,
-                output_recur[0][i],
-                output_recur[1][i],
+                output_recur[time_stamp-1][0][i],
+                output_recur[time_stamp-1][1][i],
                 self.output_weights[i],
+                i==0
             )
 
             self.output_weight_gradient[i] += delta_output_weight_gradient
             self.output_bias_gradient[i] += delta_output_bias_gradient
+        return last_dL_dz

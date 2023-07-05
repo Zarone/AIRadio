@@ -13,14 +13,63 @@ class Adam(Optimizer):
         Beta2: float = 0.95,
         loss_taperoff=False
     ):
+        """
         self.v_dw = None
         self.v_db = None
         self.s_dw = None
         self.s_db = None
+        """
+
+        self.v_vector = dict()
+        self.s_vector = dict()
+
         self.Beta1 = Beta1
         self.Beta2 = Beta2
         self.experiental_loss_taperoff = loss_taperoff
 
+    def adjusted_gradient(self, v_id, vector, loss):
+        """
+        :param vector This MUST have a constant vector or this function will have \
+unexpected behavior.
+        """
+
+        # print("adjusted_gradient")
+        # print(id(vector))
+        # print(self.v_vector)
+        # print(self.s_vector)
+
+        # v_id = id(vector)
+        if self.v_vector.get(v_id, None) is None:
+            self.v_vector[v_id] = np.empty((vector.shape), dtype=np.ndarray)
+            for index, _ in enumerate(vector):
+                self.v_vector[v_id][index] = np.zeros(vector[index].shape)
+
+        if self.s_vector.get(v_id, None) is None:
+            self.s_vector[v_id] = np.empty((vector.shape), dtype=np.ndarray)
+            for index, _ in enumerate(vector):
+                self.s_vector[v_id][index] = np.ones(vector[index].shape)
+
+        self.v_vector[v_id] = vector#self.Beta1 * self.v_vector[v_id] + (1-self.Beta1) * vector
+        self.s_vector[v_id] = self.Beta2 * self.s_vector[v_id] + \
+            (1-self.Beta2) * np.square(vector)
+
+        if v_id == 0:
+            print("vector[-1]")
+            print(vector[-1])
+            print("self.s_vector[v_id][-1]")
+            print(self.s_vector[v_id][-1])
+
+        taper_off = min(loss, 1)\
+            if self.experiental_loss_taperoff else 1
+
+        # Multiplying by the square root of loss is just
+        # so that we can get precision for small data sets.
+        # I haven't tested it much, but it seems pretty cool.
+        return self.v_vector[v_id] * Adam.SQRT(
+            taper_off / (self.s_vector[v_id] + Adam.EPSILON_NAUGHT)
+        )
+
+    """
     def adjusted_weight_gradient(self, weight_gradient, loss):
         if self.v_dw is None:
             self.v_dw = np.empty(weight_gradient.shape, dtype=np.ndarray)
@@ -67,3 +116,4 @@ class Adam(Optimizer):
         return self.v_db * Adam.SQRT(
             taper_off / (self.s_db + Adam.EPSILON_NAUGHT)
         )
+    """

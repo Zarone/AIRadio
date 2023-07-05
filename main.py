@@ -63,14 +63,14 @@ network: RecurrentVAE = RecurrentVAE(
     latent_recurrent_layers=(12, 10, 12),
     output_recurrent_layers=(3, 2, 3),
     optimizer=Adam(loss_taperoff=True),
-    activation=relu,
-    activation_derivative=relu_derivative
+    activation=leaky_relu,
+    activation_derivative=leaky_relu_derivative
 )
 time_separated_sounds = network.get_time_seperated_data(sounds)
 network.train(
     time_separated_sounds,
     batch_size=1,
-    max_epochs=1000,
+    max_epochs=250,
     graph=True,
     learning_rate=1e-3
 )
