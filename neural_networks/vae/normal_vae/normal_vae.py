@@ -90,7 +90,7 @@ class VAE(BaseNetwork):
         reconstruction_loss = np.sum(np.square(difference)) / n
 
         # Regularization term - KL divergence
-        kl_loss = -0.5 * np.sum(1 + log_var - np.square(mu) - np.exp(log_var)) / len(mu)
+        kl_loss = 0#-0.5 * np.sum(1 + log_var - np.square(mu) - np.exp(log_var)) / len(mu)
 
         return (reconstruction_loss, kl_loss)
 

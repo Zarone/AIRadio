@@ -35,9 +35,25 @@ class BaseNetwork:
         self.weight_gradient = None
         self.bias_gradient = None
 
-    def get_init_param(self, layer_size):
-        max = math.sqrt(2/layer_size)
-        return max
+    def get_init_param(self, fan_in, fan_out) -> Tuple[np.ndarray, np.ndarray]:
+        """Returns a weight and a bias, generated using the Xavier Glorot \
+method which hopes to stabilize network output during both forward and \
+backpropagation.
+
+        :param fan_in The number of neurons in the previous layers.
+        :param fan_out The number of neurons in this layer.
+        """
+
+        standard_deviation = math.sqrt(2/(fan_in + fan_out))
+
+        init_bias = config.rng.normal(
+            0, standard_deviation, (fan_out, 1)
+        )
+        init_weight = config.rng.normal(
+            0, standard_deviation, (fan_out, fan_in)
+        )
+
+        return (init_weight, init_bias)
 
     def init_coefficients(self, layers: Tuple[int, ...]) -> None:
         self.layers = layers

@@ -5,8 +5,8 @@ from neural_networks.vae.recurrent_vae.recurrent_vae import RecurrentVAE
 from neural_networks.components.optimizer.adam import Adam
 
 AMPLITUDE_SCALE = 1
-NUM_AMPLITUDES = 90
-NUM_FILES = 1
+NUM_AMPLITUDES = 6
+NUM_FILES = 5
 
 sounds, names = audio.get_raw_data(NUM_FILES, NUM_AMPLITUDES, AMPLITUDE_SCALE)
 
@@ -59,20 +59,20 @@ audio.plot_audio_comparison(song, decompressed)
 
 from neural_networks.components.activations import leaky_relu, leaky_relu_derivative, relu, relu_derivative, sigmoid, sigmoid_derivative
 network: RecurrentVAE = RecurrentVAE(
-    (3, 12), (12, 3),
-    latent_recurrent_layers=(12, 10, 12),
-    output_recurrent_layers=(3, 2, 3),
+    (3, 4), (4, 3),
+    latent_recurrent_layers=(4, 4),
+    output_recurrent_layers=(3, 3),
     optimizer=Adam(loss_taperoff=True),
-    activation=leaky_relu,
-    activation_derivative=leaky_relu_derivative
+    activation=relu,
+    activation_derivative=relu_derivative
 )
 time_separated_sounds = network.get_time_seperated_data(sounds)
 network.train(
     time_separated_sounds,
-    batch_size=1,
-    max_epochs=250,
+    batch_size=5,
+    max_epochs=20000,
     graph=True,
-    learning_rate=1e-3
+    learning_rate=1e-4
 )
 # train_compressor(sounds, COMPRESSION_1_INFO, 10000)
 

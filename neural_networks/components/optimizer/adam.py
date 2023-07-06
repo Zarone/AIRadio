@@ -33,12 +33,6 @@ class Adam(Optimizer):
 unexpected behavior.
         """
 
-        # print("adjusted_gradient")
-        # print(id(vector))
-        # print(self.v_vector)
-        # print(self.s_vector)
-
-        # v_id = id(vector)
         if self.v_vector.get(v_id, None) is None:
             self.v_vector[v_id] = np.empty((vector.shape), dtype=np.ndarray)
             for index, _ in enumerate(vector):
@@ -47,17 +41,12 @@ unexpected behavior.
         if self.s_vector.get(v_id, None) is None:
             self.s_vector[v_id] = np.empty((vector.shape), dtype=np.ndarray)
             for index, _ in enumerate(vector):
-                self.s_vector[v_id][index] = np.ones(vector[index].shape)
+                self.s_vector[v_id][index] = np.zeros(vector[index].shape)
 
-        self.v_vector[v_id] = vector#self.Beta1 * self.v_vector[v_id] + (1-self.Beta1) * vector
+        self.v_vector[v_id] = self.Beta1 * self.v_vector[v_id] + \
+            (1-self.Beta1) * vector
         self.s_vector[v_id] = self.Beta2 * self.s_vector[v_id] + \
             (1-self.Beta2) * np.square(vector)
-
-        if v_id == 0:
-            print("vector[-1]")
-            print(vector[-1])
-            print("self.s_vector[v_id][-1]")
-            print(self.s_vector[v_id][-1])
 
         taper_off = min(loss, 1)\
             if self.experiental_loss_taperoff else 1

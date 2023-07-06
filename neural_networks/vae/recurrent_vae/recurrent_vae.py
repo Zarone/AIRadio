@@ -56,14 +56,16 @@ class RecurrentVAE(VAE):
 
         length = len(self.encoder_layers) + len(self.decoder_layers) - 2
 
-        self.biases: np.ndarray = np.empty(length, dtype=np.ndarray)
-        self.weights: np.ndarray = np.empty(length, dtype=np.ndarray)
+        self.biases = np.empty(length, dtype=np.ndarray)
+        self.weights = np.empty(length, dtype=np.ndarray)
+
         latent_len = len(self.latent_recurrent_layers) - 1
-        self.latent_biases: np.ndarray = np.empty(latent_len, dtype=np.ndarray)
-        self.latent_weights: np.ndarray = np.empty(latent_len, dtype=np.ndarray)
+        self.latent_biases = np.empty(latent_len, dtype=np.ndarray)
+        self.latent_weights = np.empty(latent_len, dtype=np.ndarray)
+
         output_len = len(self.output_recurrent_layers) - 1
-        self.output_biases: np.ndarray = np.empty(output_len, dtype=np.ndarray)
-        self.output_weights: np.ndarray = np.empty(output_len, dtype=np.ndarray)
+        self.output_biases = np.empty(output_len, dtype=np.ndarray)
+        self.output_weights = np.empty(output_len, dtype=np.ndarray)
 
         index = 0
 
@@ -73,60 +75,49 @@ class RecurrentVAE(VAE):
 
         # Encoder layers
         for i in range(0, len(self.encoder_layers)-1, 1):
-            max = self.get_init_param(tmp_layers[i])
-            self.biases[i] = config.rng.normal(
-                0, max, (tmp_layers[i+1], 1)
+            init_weight, init_bias = self.get_init_param(
+                tmp_layers[i], tmp_layers[i+1]
             )
-            self.weights[i] = config.rng.normal(
-                0, max, (tmp_layers[i+1], tmp_layers[i])
-            )
+            self.biases[i] = init_bias
+            self.weights[i] = init_weight
 
         # Sample to Decoder (Includes the fact that
         # the output of iteration n-1 is passed into
         # the first hidden layer in decoder)
-        max = self.get_init_param(self.decoder_layers[0]+self.decoder_layers[-1])
         index = len(self.encoder_layers) - 1
-        self.biases[index] = config.rng.normal(0, max, (self.decoder_layers[1], 1))
-        self.weights[index] = config.rng.normal(
-            0, max, (self.decoder_layers[1], self.decoder_layers[0]+self.decoder_layers[-1])
+        init_weight, init_bias = self.get_init_param(
+            self.decoder_layers[0]+self.decoder_layers[-1],
+            self.decoder_layers[1]
         )
+        self.biases[index] = init_bias
+        self.weights[index] = init_weight
         index += 1
 
         # Decoder layers
         for i in range(index, len(tmp_layers)-1):
-            max = math.sqrt(2 / tmp_layers[i])
-            self.biases[i] = config.rng.normal(
-                0, max, (tmp_layers[i+1], 1))
-            self.weights[i] = config.rng.normal(
-                0, max, (tmp_layers[i+1], tmp_layers[i]))
+            init_weight, init_bias = self.get_init_param(
+                tmp_layers[i], tmp_layers[i+1]
+            )
+            self.biases[i] = init_bias
+            self.weights[i] = init_weight
 
         # Latent recurrent layers
         for i in range(len(self.latent_recurrent_layers)-1):
-            max = math.sqrt(2 / self.latent_recurrent_layers[i+1])
-            self.latent_biases[i] = config.rng.normal(
-                0, max, (self.latent_recurrent_layers[i+1], 1)
+            init_weight, init_bias = self.get_init_param(
+                self.latent_recurrent_layers[i],
+                self.latent_recurrent_layers[i+1]
             )
-            self.latent_weights[i] = config.rng.normal(
-                0, max, (
-                    self.latent_recurrent_layers[i+1],
-                    self.latent_recurrent_layers[i]
-                )
-            )
+            self.latent_biases[i] = init_bias
+            self.latent_weights[i] = init_weight
 
         # Output recurrent layers
         for i in range(len(self.output_recurrent_layers)-1):
-            max = math.sqrt(2 / self.output_recurrent_layers[i+1])
-            self.output_biases[i] = config.rng.normal(
-                0, max, (
-                    self.output_recurrent_layers[i+1], 1
-                )
+            init_weight, init_bias = self.get_init_param(
+                self.output_recurrent_layers[i],
+                self.output_recurrent_layers[i+1]
             )
-            self.output_weights[i] = config.rng.normal(
-                0, max, (
-                    self.output_recurrent_layers[i+1],
-                    self.output_recurrent_layers[i]
-                )
-            )
+            self.output_biases[i] = init_bias
+            self.output_weights[i] = init_weight
 
     def feedforward(self, input: np.ndarray) -> np.ndarray:
         mu, log_variance = self.encode(input)
@@ -193,7 +184,7 @@ class RecurrentVAE(VAE):
         self,
         input_value: np.ndarray
     ) -> Tuple[
-        np.ndarray, np.ndarray, np.ndarray, 
+        np.ndarray, np.ndarray, np.ndarray,
         np.ndarray, np.ndarray, np.ndarray
     ]:
         """This function takes an input vector and returns all \
@@ -243,7 +234,7 @@ class RecurrentVAE(VAE):
                 z_values[iter][layer], activations[iter][layer] = \
                     self.feedforward_layer(
                         layer, last_activations,
-                        force_linear=False#layer == len(self.encoder_layers)-2
+                        force_linear=layer == len(self.encoder_layers)-2
                     )
                 last_activations = activations[iter][layer]
 
@@ -267,11 +258,13 @@ class RecurrentVAE(VAE):
                 latent_recurrent_intermediete[iter] = self._latent_to_latent(
                     new_hidden_state
                 )
+
                 new_hidden_state = latent_recurrent_intermediete[iter][1][-1]
 
                 last_activations = np.concatenate(
                     (input_value[iter+1], new_hidden_state)
                 )
+
                 combined_inputs[iter+1] = last_activations
         parameters_count = len(activations[-1][-1])//2
 
@@ -346,7 +339,6 @@ class RecurrentVAE(VAE):
                 output_recurrent_intermediete[i] = self._output_to_output(
                     last_activations
                 )
-                pass
                 concat = np.concatenate(
                     (input_value, output_recurrent_intermediete[i][1][-1])
                 )
@@ -506,28 +498,34 @@ and Q is the length of the input layer.
         adjusted_learning_rate = learning_rate / len(batch)
         self.weights -= \
             adjusted_learning_rate * \
-            self.optimizer.adjusted_gradient(0, self.weight_gradient, reconstruction_loss)
+            self.optimizer.adjusted_gradient(
+                0, self.weight_gradient, reconstruction_loss)
 
         self.biases -= \
             adjusted_learning_rate * \
-            self.optimizer.adjusted_gradient(1, self.bias_gradient, reconstruction_loss)
+            self.optimizer.adjusted_gradient(
+                1, self.bias_gradient, reconstruction_loss)
 
         self.output_weights -= \
             adjusted_learning_rate * \
-            self.optimizer.adjusted_gradient(2, self.output_weight_gradient, reconstruction_loss)
+            self.optimizer.adjusted_gradient(
+                2, self.output_weight_gradient, reconstruction_loss)
 
         self.output_biases -= \
             adjusted_learning_rate * \
-            self.optimizer.adjusted_gradient(3, self.output_bias_gradient, reconstruction_loss)
+            self.optimizer.adjusted_gradient(
+                3, self.output_bias_gradient, reconstruction_loss)
 
         self.latent_weights -= \
             adjusted_learning_rate * \
-            self.optimizer.adjusted_gradient(4, self.latent_weight_gradient, reconstruction_loss)
+            self.optimizer.adjusted_gradient(
+                4, self.latent_weight_gradient, reconstruction_loss)
 
         self.latent_biases -= \
             adjusted_learning_rate * \
-            self.optimizer.adjusted_gradient(5, self.latent_bias_gradient, reconstruction_loss)
-            
+            self.optimizer.adjusted_gradient(
+                5, self.latent_bias_gradient, reconstruction_loss)
+
         return (reconstruction_loss, kl_loss)
 
     def training_data_point(
@@ -537,6 +535,7 @@ and Q is the length of the input layer.
         Beta,
         print_epochs=False
     ):
+        pass
         z1, a1, mu, log_variance, encoder_outputs, l_recur = \
             self._encode(data_point)
         generated, epsilon = self._gen(mu, log_variance)
@@ -609,7 +608,6 @@ and Q is the length of the input layer.
                 o_recur
             )
 
-        """
         # Backpropagates through the layer in the network between
         # the encoder and the decoder.
         last_dL_dz = self.backpropagate_through_generator(
@@ -629,13 +627,14 @@ and Q is the length of the input layer.
             last_dL_dz,
             z_values,
             activation_values,
+            l_recur,
+            o_recur,
             iter_input=encoder_outputs,
             Beta=Beta,
             mu=mu_values,
             log_variance=logvar_values,
             epsilon=None  # epsilon_encoder
         )
-        """
 
         return (reconstruction_loss, kl_loss)
 
@@ -724,6 +723,12 @@ and Q is the length of the input layer.
                 # respect to state, not input
                 last_dL_dz = last_dL_dz[self.encoder_layers[0]:]
 
+                last_dL_dz = self.backpropagate_through_recursive_latent(
+                    i,
+                    last_dL_dz,
+                    l_recur
+                )
+
                 last_dL_dz = self.backpropagate_through_generator(
                     last_dL_dz,
                     0,  # No point in training to lower intermediate mu
@@ -784,6 +789,7 @@ and Q is the length of the input layer.
         log_variance,
         epsilon
     ):
+        """
         # This calculation is derived by taking the partial
         # derivative of loss with respect to mu.
         dL_dmu = last_dL_dz + Beta*mu/self.latent_size
@@ -794,6 +800,10 @@ and Q is the length of the input layer.
             last_dL_dz \
             * epsilon/2*np.exp(log_variance/2) \
             - Beta*(1-np.exp(log_variance))/self.latent_size/2
+        """
+
+        dL_dmu = last_dL_dz
+        dL_dlogvar = last_dL_dz * 0
 
         return np.concatenate((dL_dmu, dL_dlogvar), axis=0)
 
@@ -808,15 +818,39 @@ and Q is the length of the input layer.
             len(self.output_recurrent_layers)-2, -1, -1
         ):
             delta_output_weight_gradient,\
-            delta_output_bias_gradient,\
-            last_dL_dz = self.backpropagate_custom_layer(
-                last_dL_dz,
-                output_recur[time_stamp-1][0][i],
-                output_recur[time_stamp-1][1][i],
-                self.output_weights[i],
-                i==0
-            )
+                delta_output_bias_gradient,\
+                last_dL_dz = self.backpropagate_custom_layer(
+                    last_dL_dz,
+                    output_recur[time_stamp-1][0][i],
+                    output_recur[time_stamp-1][1][i],
+                    self.output_weights[i],
+                    i == 0
+                )
 
             self.output_weight_gradient[i] += delta_output_weight_gradient
             self.output_bias_gradient[i] += delta_output_bias_gradient
+        return last_dL_dz
+
+    def backpropagate_through_recursive_latent(
+        self,
+        time_stamp,
+        starting_dL_dz,
+        latent_recur
+    ):
+        last_dL_dz = starting_dL_dz
+        for i in range(
+            len(self.latent_recurrent_layers)-2, -1, -1
+        ):
+            delta_latent_weight_gradient,\
+                delta_latent_bias_gradient,\
+                last_dL_dz = self.backpropagate_custom_layer(
+                    last_dL_dz,
+                    latent_recur[time_stamp-1][0][i],
+                    latent_recur[time_stamp-1][1][i],
+                    self.latent_weights[i],
+                    i == 0
+                )
+
+            self.latent_weight_gradient[i] += delta_latent_weight_gradient
+            self.latent_bias_gradient[i] += delta_latent_bias_gradient
         return last_dL_dz
