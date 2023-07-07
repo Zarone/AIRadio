@@ -1,33 +1,21 @@
 from neural_networks.components.optimizer.optimizer import Optimizer
 import numpy as np
 
+
 class Adadelta(Optimizer):
-  def __init__(self, Beta: float = 0.95):
-    self.s_dw = None
-    self.s_db = None
-    self.Beta = Beta
-    self.epsilon_naught = 1E-15
+    def __init__(self, Beta: float = 0.95):
+        self.s_vector = dict()
+        self.Beta = Beta
 
-  def adjusted_weight_gradient(self, weight_gradient):
-    if self.s_dw is None:
-      self.s_dw = np.empty(weight_gradient.shape, dtype=np.ndarray)
-      for index, _ in enumerate(weight_gradient):
-        self.s_dw[index] = np.zeros(weight_gradient[index].shape)
+    def adjusted_gradient(self, v_id, vector, *_):
+        if self.s_vector.get(v_id, None) is None:
+            self.s_vector[v_id] = np.empty((vector.shape), dtype=np.ndarray)
+            for index, _ in enumerate(vector):
+                self.s_vector[v_id][index] = np.zeros(vector[index].shape)
 
-    self.s_dw = self.Beta * self.s_dw + (1 - self.Beta) * np.square(weight_gradient)
-    for index, _ in enumerate(weight_gradient):
-      weight_gradient[index] /= np.sqrt(self.s_dw[index] + self.epsilon_naught)
+        self.s_vector[v_id] = self.Beta * self.s_vector[v_id] + \
+            (1-self.Beta) * np.square(vector)
 
-    return weight_gradient
-
-  def adjusted_bias_gradient(self, bias_gradient):
-    if self.s_db is None:
-      self.s_db = np.empty(bias_gradient.shape, dtype=np.ndarray)
-      for index, _ in enumerate(bias_gradient):
-        self.s_db[index] = np.zeros(bias_gradient[index].shape)
-
-    self.s_db = self.Beta * self.s_db + (1-self.Beta) * np.square(bias_gradient)
-    for index, _ in enumerate(bias_gradient):
-      bias_gradient[index] /= np.sqrt(self.s_db[index] + self.epsilon_naught)
-
-    return bias_gradient
+        return vector / Optimizer.SQRT(
+            (self.s_vector[v_id] + Optimizer.EPSILON_NAUGHT)
+        )

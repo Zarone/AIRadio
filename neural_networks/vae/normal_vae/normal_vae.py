@@ -1,4 +1,4 @@
-from neural_networks.components.optimizer.adam import Adam
+from neural_networks.components.optimizer.adam_w_taperoff import AdamTaperoff
 from neural_networks.components.base import BaseNetwork
 import numpy as np
 import neural_networks.components.config as config
@@ -17,7 +17,7 @@ class VAE(BaseNetwork):
         decoder_layers: Tuple[int, ...],
         activation=leaky_relu,
         activation_derivative=leaky_relu_derivative,
-        optimizer: Optimizer = Adam(loss_taperoff=True)
+        optimizer: Optimizer = AdamTaperoff()
     ) -> None:
         assert encoder_layers[-1] == decoder_layers[0],\
             "Initialized VAE with inconsistent latent space size"
@@ -382,7 +382,11 @@ class VAE(BaseNetwork):
             self.bias_gradient[0] += decoder_gradients_z[0]
 
         self.weights -= learning_rate / \
-            len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient, reconstruction_loss)
+            len(batch) * self.optimizer.adjusted_gradient(
+                0, self.weight_gradient, reconstruction_loss
+            )
         self.biases -= learning_rate / \
-            len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient, reconstruction_loss)
+            len(batch) * self.optimizer.adjusted_gradient(
+                1, self.bias_gradient, reconstruction_loss
+            )
         return reconstruction_loss/len(batch), kl_loss/len(batch)

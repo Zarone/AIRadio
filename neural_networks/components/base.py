@@ -1,5 +1,5 @@
 from neural_networks.components.optimizer.optimizer import Optimizer
-from neural_networks.components.optimizer.adam import Adam
+from neural_networks.components.optimizer.adam_w_taperoff import AdamTaperoff
 from typing import Any, Tuple, List
 import numpy as np
 import neural_networks.components.config as config
@@ -23,13 +23,13 @@ class BaseNetwork:
         layers: Tuple[int, ...],
         activation=leaky_relu,
         activation_derivative=leaky_relu_derivative,
-        optimizer: Optimizer = Adam(loss_taperoff=True)
+        optimizer: Optimizer = AdamTaperoff()
     ) -> None:
         self.optimizer = optimizer
         self.activation = activation
         self.activation_derivative = activation_derivative
-
-        self.init_coefficients(layers)
+        self.layers = layers
+        self.init_coefficients()
 
         # These are used in training
         self.weight_gradient = None
@@ -55,21 +55,21 @@ backpropagation.
 
         return (init_weight, init_bias)
 
-    def init_coefficients(self, layers: Tuple[int, ...]) -> None:
-        self.layers = layers
+    def init_coefficients(self) -> None:
+        """This function justs initializes the weights and biases in the network \
+according to the layers in the network.
+        """
         num_layers = len(self.layers) - 1
 
         self.biases: np.ndarray = np.array([None] * num_layers)
         self.weights: np.ndarray = np.array([None] * num_layers)
 
         for i in range(num_layers):
-            max = self.get_init_param(layers[i])
-            self.biases[i] = config.rng.normal(
-                0, max, (layers[i+1], 1)
+            init_weights, init_bias = self.get_init_param(
+                self.layers[i], self.layers[i+1]
             )
-            self.weights[i] = config.rng.normal(
-                0, max, (layers[i+1], layers[i])
-            )
+            self.weights[i] = init_weights
+            self.biases[i] = init_bias
 
     def _feedforward(self, input_val: np.ndarray) -> Tuple[List, List]:
         """This functions takes an input and returns the z values 
@@ -79,8 +79,8 @@ backpropagation.
     and the second element is the true output.
         """
 
-        assert len(
-            input_val.shape) != 1, f"function expected input_val shape of (n,2), received shape of {input_val.shape}"
+        assert len(input_val.shape) != 1,\
+            f"function expected input_val shape of (n,2), received shape of {input_val.shape}"
 
         num_layers = len(self.layers) - 1
         activations: List = [None] * num_layers
@@ -246,9 +246,13 @@ backpropagation.
             self.bias_gradient[0] += decoder_gradients_z[0]
 
         self.weights -= learning_rate / \
-            len(batch) * self.optimizer.adjusted_weight_gradient(self.weight_gradient, reconstruction_loss)
+            len(batch) * self.optimizer.adjusted_gradient(
+                0, self.weight_gradient, reconstruction_loss
+            )
         self.biases -= learning_rate / \
-            len(batch) * self.optimizer.adjusted_bias_gradient(self.bias_gradient, reconstruction_loss)
+            len(batch) * self.optimizer.adjusted_gradient(
+                0, self.bias_gradient, reconstruction_loss
+            )
         return (reconstruction_loss/len(batch),)
 
     @staticmethod

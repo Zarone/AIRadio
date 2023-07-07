@@ -1,6 +1,7 @@
 # AI Radio
 
 ## To Do
+- Completely redo the Recursive VAE class. It's just terrible. It doesn't work.
 - Create Recursive VAE
   - Abstract the loss function and initial gradient so that it can be connected to GAN Later.
 - Create GAN

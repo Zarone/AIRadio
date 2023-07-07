@@ -216,11 +216,13 @@ class RecurrentVAE(VAE):
             np.ndarray
         )
 
+        """
         # This data is needed for backpropagation later
         epsilon = np.empty(
             [iterations-1, self.hidden_state_size, 1],
             dtype=np.float64
         )
+        """
 
         # This data is needed for backpropagation later
         combined_inputs = np.empty(
@@ -239,14 +241,6 @@ class RecurrentVAE(VAE):
                 last_activations = activations[iter][layer]
 
             if iter != iterations-1:
-                """
-                new_hidden_state, epsilon[iter] = \
-                    self._gen(
-                        activations[iter][-1][0:self.hidden_state_size],
-                        activations[iter][-1][self.hidden_state_size:self.hidden_state_size*2]
-                    )
-                """
-
                 # So if you wanted, you could use the generator to do this
                 # calculation, but, with the parameter being log variance,
                 # the activations inside the network could explode. I've
@@ -455,10 +449,14 @@ and Q is the length of the input layer.
                 self.output_biases[i].shape
             )
 
-        if self.latent_weight_gradient is None or\
-        self.latent_bias_gradient is None:
-            self.latent_weight_gradient = np.empty(self.latent_weights.shape, np.ndarray)
-            self.latent_bias_gradient = np.empty(self.latent_biases.shape, np.ndarray)
+        if (
+            self.latent_weight_gradient is None or
+            self.latent_bias_gradient is None
+        ):
+            self.latent_weight_gradient = np.empty(
+                self.latent_weights.shape, np.ndarray)
+            self.latent_bias_gradient = np.empty(
+                self.latent_biases.shape, np.ndarray)
 
         for i, _ in enumerate(self.latent_weight_gradient):
             self.latent_weight_gradient[i] = np.zeros(
@@ -597,7 +595,7 @@ and Q is the length of the input layer.
             # Backpropagates through time, from the output layer
             # to the start of the decoder.
 
-            dL_dlatent_space += self.backpropagate_through_time(
+            delta_dL_dlatent_space = self.backpropagate_through_time(
                 j,
                 last_layer_index,  # first layer (inclusive)
                 decoder_stop_layer,  # last layer (exclusive)
@@ -607,6 +605,8 @@ and Q is the length of the input layer.
                 l_recur,
                 o_recur
             )
+
+            dL_dlatent_space += delta_dL_dlatent_space
 
         # Backpropagates through the layer in the network between
         # the encoder and the decoder.
@@ -692,8 +692,6 @@ and Q is the length of the input layer.
                     )
                 self.weight_gradient[layer] += delta_weight_gradient
                 self.bias_gradient[layer] += delta_bias_gradient
-                # print(f"i = {i}, layer = {layer}, delta_weight_gradient")
-                # print(delta_weight_gradient)
 
             # If the backpropagation is through the decoder
             if end_layer > -1:
