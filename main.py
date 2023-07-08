@@ -1,11 +1,10 @@
 import audio_parsing.audio_parsing as audio
 from neural_networks.components.base import BaseNetwork
-from neural_networks.vae.normal_vae.normal_vae import VAE
-from neural_networks.components.optimizer.adam import Adam
+from neural_networks.components.optimizer.adam_w_taperoff import AdamTaperoff
 
 AMPLITUDE_SCALE = 1
 NUM_AMPLITUDES = 5
-NUM_FILES = 5
+NUM_FILES = 10
 
 sounds, names = audio.get_raw_data(NUM_FILES, NUM_AMPLITUDES, AMPLITUDE_SCALE)
 
@@ -29,22 +28,22 @@ audio.play_audio(decompressed, AMPLITUDE_SCALE)
 audio.plot_audio_comparison(song, decompressed)
 """
 
-"""
-# network = BaseNetwork(
-    # layers=(5, 4, 3, 3, 3, 4, 5),
-    # optimizer=Adam(loss_taperoff=True)
-# )
-# formatted_sounds = network.format_unsupervised_input(sounds)
+network = BaseNetwork(
+    layers=(5, 4, 3, 3, 3, 4, 5),
+    optimizer=AdamTaperoff()
+)
 
-# network.train(
-    # formatted_sounds,
-    # batch_size=5,
-    # max_epochs=20000,
-    # graph=True,
-    # learning_rate=0.01
-# )
-"""
+formatted_sounds = network.format_unsupervised_input(sounds)
 
+network.train(
+    formatted_sounds,
+    batch_size=10,
+    max_epochs=10000,
+    graph=True,
+    learning_rate=0.01
+)
+
+"""
 network: VAE = VAE(encoder_layers=(5, 4, 3, 3), decoder_layers=(3, 3, 4, 5))
 network.train(
     sounds,
@@ -53,6 +52,7 @@ network.train(
     graph=True,
     learning_rate=0.01
 )
+"""
 
 
 """

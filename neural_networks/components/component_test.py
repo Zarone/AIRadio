@@ -1,15 +1,17 @@
-from neural_networks.components.activations import\
-    relu,\
-    relu_derivative,\
-    leaky_relu,\
-    leaky_relu_derivative,\
-    elu,\
-    elu_derivative,\
-    sigmoid,\
-    sigmoid_derivative,\
-    linear,\
+from neural_networks.components.activations import (
+    relu,
+    relu_derivative,
+    leaky_relu,
+    leaky_relu_derivative,
+    elu,
+    elu_derivative,
+    sigmoid,
+    sigmoid_derivative,
+    linear,
     linear_derivative
+)
 from neural_networks.components.base import BaseNetwork
+from neural_networks.components.loss_types import Loss
 import numpy as np
 
 
@@ -126,7 +128,7 @@ def component_test(Tester):
             "Network Loss",
             module.eq(
                 network.loss(np.array([y_true, y_true]), y_pred),
-                (expected_loss,)
+                {Loss.RECONSTRUCTION_LOSS: expected_loss}
             )
         )
 

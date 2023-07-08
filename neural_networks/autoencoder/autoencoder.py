@@ -70,8 +70,8 @@ class AutoEncoder(BaseNetwork):
 
         last_activations = latent_space
         for i in range(self.latent_layer, num_layers):
-            zs[i-self.latent_layer], activations[i -
-                                                 self.latent_layer] = self.feedforward_layer(i, last_activations)
+            zs[i-self.latent_layer], activations[i - self.latent_layer] = \
+                self.feedforward_layer(i, last_activations)
             last_activations = activations[i-self.latent_layer]
 
         return (zs, activations)
