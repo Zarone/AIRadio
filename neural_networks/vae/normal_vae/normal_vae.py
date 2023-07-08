@@ -44,44 +44,49 @@ class VAE(BaseNetwork):
 
         # Encoder layers
         for _ in range(0, len(self.encoder_layers)-2):
-            max = math.sqrt(2 / self.encoder_layers[index])
-            min = -max
-            self.biases[index] = config.rng.uniform(
-                min, max, (self.encoder_layers[index+1], 1))
-            self.weights[index] = config.rng.uniform(
-                min, max, (self.encoder_layers[index+1], self.encoder_layers[index]))
+            init_weight, init_bias = self.get_init_param(
+                self.encoder_layers[index],
+                self.encoder_layers[index+1]
+            )
+            self.weights[index] = init_weight
+            self.biases[index] = init_bias
             index += 1
 
-        max = math.sqrt(2 / self.encoder_layers[index])
-        min = -max
-
         # Encoder to latent space
-        self.biases[index] = config.rng.uniform(
-            min, max, (self.encoder_layers[index+1]*2, 1))
-        self.weights[index] = config.rng.uniform(
-            min, max, (self.encoder_layers[index+1]*2, self.encoder_layers[index]))
+        init_weight, init_bias = self.get_init_param(
+            self.encoder_layers[index],
+            self.encoder_layers[index+1]*2
+        )
+        self.biases[index] = init_bias
+        self.weights[index] = init_weight
         index += 1
 
-        max = math.sqrt(2 / self.decoder_layers[0])
-        min = -max
-
         # Sample to Decoder
-        self.biases[index] = config.rng.uniform(min, max, (self.decoder_layers[1], 1))
-        self.weights[index] = config.rng.uniform(
-            min, max, (self.decoder_layers[1], self.decoder_layers[0]))
+        init_weight, init_bias = self.get_init_param(
+            self.decoder_layers[0],
+            self.decoder_layers[1]
+        )
+        self.biases[index] = init_bias
+        self.weights[index] = init_weight
         index += 1
 
         # Decoder layers
         for _ in range(0, len(self.decoder_layers)-2):
-            max = math.sqrt(2 / self.decoder_layers[index+1-len(self.encoder_layers)])
-            min = -max
-            self.biases[index] = config.rng.uniform(
-                min, max, (self.decoder_layers[index+2-len(self.encoder_layers)], 1))
-            self.weights[index] = config.rng.uniform(
-                min, max, (self.decoder_layers[index+2-len(self.encoder_layers)], self.decoder_layers[index+1-len(self.encoder_layers)]))
+            init_weight, init_bias = self.get_init_param(
+                self.decoder_layers[index+1-len(self.encoder_layers)],
+                self.decoder_layers[index+2-len(self.encoder_layers)]
+            )
+            self.biases[index] = init_bias
+            self.weights[index] = init_weight
             index += 1
 
-    def loss(self, y_true, y_pred, mu=np.array([0.0]), log_var=np.array([0.0])):
+    def loss(
+        self,
+        y_true,
+        y_pred,
+        mu=np.array([0.0]),
+        log_var=np.array([0.0])
+    ):
         n = y_true.shape[0]  # Number of samples
 
         difference = y_true - y_pred
@@ -90,24 +95,33 @@ class VAE(BaseNetwork):
         reconstruction_loss = np.sum(np.square(difference)) / n
 
         # Regularization term - KL divergence
-        kl_loss = 0#-0.5 * np.sum(1 + log_var - np.square(mu) - np.exp(log_var)) / len(mu)
+        kl_loss = -0.5 * np.sum(
+            1 + log_var - np.square(mu) - np.exp(log_var)
+        ) / len(mu)
 
         return (reconstruction_loss, kl_loss)
 
-    def _encode(self, input: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def _encode(
+        self,
+        input: np.ndarray
+    ) -> Tuple[
+        np.ndarray, np.ndarray, np.ndarray, np.ndarray
+    ]:
         """This function takes an input vector and returns all \
     internally relevant variables after feedforward to latent space.
 
-       :param input An (N, 1) vector of floats. 
+       :param input An (N, 1) vector of floats.
         """
 
-        assert len(
-            input.shape) == 2 and input.shape[1] == 1, f"Expected shape (N, 1), but got shape {input.shape}"
+        assert len(input.shape) == 2 and input.shape[1] == 1, \
+            f"Expected shape (N, 1), but got shape {input.shape}"
 
         activations: np.ndarray = np.array(
-            [None] * (len(self.encoder_layers) - 1))
+            [None] * (len(self.encoder_layers) - 1)
+        )
         z_values: np.ndarray = np.array(
-            [None] * (len(self.encoder_layers) - 1))
+            [None] * (len(self.encoder_layers) - 1)
+        )
 
         i = 0
 
@@ -117,14 +131,13 @@ class VAE(BaseNetwork):
             z_values[i], activations[i] = self.feedforward_layer(
                 i, last_activations, False
             )
-
             i += 1
 
         last_activations = input if i == 0 else activations[-2]
 
-        # z_{i} = w * a_{i-1} + b
         z_values[i] = np.matmul(
-            self.weights[i], last_activations) + self.biases[i]
+            self.weights[i], last_activations
+        ) + self.biases[i]
 
         activations[i] = z_values[i]
 
@@ -191,7 +204,7 @@ class VAE(BaseNetwork):
 
     def _gen(self, mu, log_variance) -> Tuple[np.ndarray, np.ndarray]:
         epsilon = np.random.randn(len(mu)).reshape(-1, 1)
-        z = mu #+ np.exp(0.5 * log_variance) * epsilon
+        z = mu + np.exp(0.5 * log_variance) * epsilon
         return (z, epsilon)
 
     def gen(self, mu, log_variance) -> np.ndarray:

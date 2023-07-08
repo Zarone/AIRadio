@@ -56,8 +56,8 @@ backpropagation.
         return (init_weight, init_bias)
 
     def init_coefficients(self) -> None:
-        """This function justs initializes the weights and biases in the network \
-according to the layers in the network.
+        """This function justs initializes the weights and biases in the \
+network according to the layers in the network.
         """
         num_layers = len(self.layers) - 1
 
