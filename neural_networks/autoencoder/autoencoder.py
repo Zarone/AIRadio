@@ -15,7 +15,7 @@ class AutoEncoder(BaseNetwork):
         layers: Tuple[int, ...],
         activation=leaky_relu,
         activation_derivative=leaky_relu_derivative,
-        optimizer: Optimizer = Adam()
+        optimizer: Optimizer = Adam
     ):
         self.latent_layer = len(layers)//2
         super().__init__(

@@ -28,9 +28,9 @@ class BaseNetwork:
         layers: Tuple[int, ...],
         activation=leaky_relu,
         activation_derivative=leaky_relu_derivative,
-        optimizer: Optimizer = AdamTaperoff()
+        optimizer: Optimizer = AdamTaperoff
     ) -> None:
-        self.optimizer = optimizer
+        self.optimizer = optimizer()
         self.activation = activation
         self.activation_derivative = activation_derivative
         self.layers = layers
@@ -88,10 +88,6 @@ and activations of the network after a feedforward.
 the input, and the second element is the true output.
         """
 
-        assert len(input_val.shape) != 1,\
-            "function expected input_val shape of (n,2), " + \
-            f"received shape of {input_val.shape}"
-
         num_layers = len(self.layers) - 1
         activations: List = [None] * num_layers
         zs: List = [None] * num_layers
@@ -123,10 +119,6 @@ the input, and the second element is the true output.
         return (z, activation_function(z))
 
     def loss(self, y_true, y_pred):
-        assert len(y_true.shape) != 1,\
-            "function expected input_val shape of (n,2), " + \
-            f"received shape of {y_true.shape}"
-
         n = y_true[1].shape[0]  # Number of samples
 
         # Reconstruction loss
@@ -261,40 +253,46 @@ to testing.
             self.coef_gradients[Coefficients.BIASES][i] = \
                 np.zeros(self.coefs[Coefficients.BIASES][i].shape)
 
-    def training_step(self, batch, learning_rate, print_epochs):
-        self.init_gradients()
-
-        assert not (
-            self.coef_gradients[Coefficients.WEIGHTS] is None or
-            self.coef_gradients[Coefficients.BIASES] is None
-        ), "Weight gradient not defined for some reason"
-
-        losses = {}
-
-        for _, data_point in enumerate(batch):
-            delta_loss = self.backpropagate(data_point, print_epochs)
-            for key, value in delta_loss.items():
-                losses.setdefault(key, 0)
-                losses[key] += value
-
+    def update_coefficients(self, learning_rate, batch, losses):
         for key, value in self.coefs.items():
             self.coefs[key] -= learning_rate / \
                 len(batch) * self.optimizer.adjusted_gradient(
-                    0, self.coef_gradients[key],
+                    key, self.coef_gradients[key],
                     losses[Loss.TOTAL_LOSS]
                     if Loss.TOTAL_LOSS in losses
                     else losses[Loss.RECONSTRUCTION_LOSS]
                 )
 
+    def training_step(self, batch, learning_rate, print_epochs):
+        self.init_gradients()
+
+        losses = {}
+
+        for _, data_point in enumerate(batch):
+            delta_loss, _ = self.backpropagate(data_point, print_epochs)
+            for key, value in delta_loss.items():
+                losses.setdefault(key, 0)
+                losses[key] += value
+
+        self.update_coefficients(learning_rate, batch, losses)
+
         return losses
 
-    def backpropagate(self, data_point, print_epochs, dL_dz=None):
+    def backpropagate(
+        self,
+        data_point,
+        print_epochs,
+        dL_dz=None,
+        feedforward_values=None
+    ):
         reconstruction_loss = 0
 
-        z_values, activations = self._feedforward(data_point)
+        z_values, activations = feedforward_values\
+            if feedforward_values is not None\
+            else self._feedforward(data_point)
 
         # Partial Derivative of Loss with respect to the output activations
-        dL_daL = dL_dz or\
+        dL_daL = dL_dz if dL_dz is not None else\
             (activations[-1] - data_point[1]) * (2/len(activations[-1]))
 
         if print_epochs:
@@ -316,31 +314,37 @@ to testing.
             if j != last_index:
                 activation_derivative_func = self.activation_derivative
                 decoder_gradients_z[j] = np.matmul(
-                    self.coefs[Coefficients.WEIGHTS][j+1].transpose(), decoder_gradients_z[j+1]
+                    self.coefs[Coefficients.WEIGHTS][j+1].transpose(),
+                    decoder_gradients_z[j+1]
                 ) * activation_derivative_func(z_layer)
 
             if j != 0:
                 self.coef_gradients[Coefficients.WEIGHTS][j] += np.matmul(
                     decoder_gradients_z[j], activations[j-1].transpose())
-                self.coef_gradients[Coefficients.BIASES][j] += decoder_gradients_z[j]
+                self.coef_gradients[Coefficients.BIASES][j] += \
+                    decoder_gradients_z[j]
 
         self.coef_gradients[Coefficients.WEIGHTS][0] += np.matmul(
             decoder_gradients_z[0], data_point[0].transpose()
         )
         self.coef_gradients[Coefficients.BIASES][0] += decoder_gradients_z[0]
 
-        return {
+        return ({
             Loss.RECONSTRUCTION_LOSS: reconstruction_loss
-        }
+        }, decoder_gradients_z[0])
 
     @staticmethod
     def format_unsupervised_input(input):
         return np.stack([input, input], axis=1)
 
     def save_to_file(self, file: str):
-        np.savez(file, weights=self.weights, biases=self.biases)
+        np.savez(
+            file,
+            weights=self.coefs[Coefficients.WEIGHTS],
+            biases=self.coefs[Coefficients.BIASES]
+        )
 
     def init_from_file(self, file: str):
         parameters = np.load(file, allow_pickle=True)
-        self.weights = parameters['weights']
-        self.biases = parameters['biases']
+        self.coefs[Coefficients.WEIGHTS] = parameters['weights']
+        self.coefs[Coefficients.BIASES] = parameters['biases']

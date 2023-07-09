@@ -12,6 +12,7 @@ from neural_networks.components.activations import (
 )
 from neural_networks.components.base import BaseNetwork
 from neural_networks.components.loss_types import Loss
+from neural_networks.components.coefs import Coefficients
 import numpy as np
 
 
@@ -73,20 +74,20 @@ def component_test(Tester):
 
         # Test for linear layer initialization
         network = BaseNetwork(layers=(2, 3, 1))
-        module.tester("Parameter Shape 1", module.eq(network.biases.shape, (2,)))
-        module.tester("Parameter Shape 2", module.eq(network.weights.shape, (2,)))
+        module.tester("Parameter Shape 1", module.eq(network.coefs[Coefficients.BIASES].shape, (2,)))
+        module.tester("Parameter Shape 2", module.eq(network.coefs[Coefficients.WEIGHTS].shape, (2,)))
         module.tester("Parameter Shape 3", module.eq(
-            network.biases[0].shape, (3, 1)))
+            network.coefs[Coefficients.BIASES][0].shape, (3, 1)))
         module.tester("Parameter Shape 4", module.eq(
-            network.weights[0].shape, (3, 2)))
+            network.coefs[Coefficients.WEIGHTS][0].shape, (3, 2)))
         module.tester("Parameter Shape 5", module.eq(
-            network.biases[1].shape, (1, 1)))
+            network.coefs[Coefficients.BIASES][1].shape, (1, 1)))
         module.tester("Parameter Shape 6", module.eq(
-            network.weights[1].shape, (1, 3)))
+            network.coefs[Coefficients.WEIGHTS][1].shape, (1, 3)))
 
         # Test for feedforward layer
-        network.weights[0] = np.array([[1, 2], [3, 4]])
-        network.biases[0] = np.array([1, -1])
+        network.coefs[Coefficients.WEIGHTS][0] = np.array([[1, 2], [3, 4]])
+        network.coefs[Coefficients.BIASES][0] = np.array([1, -1])
         inputs = np.array([3, 2])
         expected_z = np.array([8, 16])
         expected_activation = np.array([8, 16])
