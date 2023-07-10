@@ -44,6 +44,8 @@ class VAE(BaseNetwork):
         self.decoder: sub_network = sub_network(decoder_layers)
 
         self.init_coefficients()
+        self.beta = 1
+        self.epsilon_max = 0.01
 
     def init_coefficients(self):
         self.encoder.init_coefficients()
@@ -64,12 +66,12 @@ class VAE(BaseNetwork):
         }
 
     def _encode(self, input):
-        z_values, a_values = self.encoder._feedforward(input)
-        last_layer = a_values[-1]
+        encoder_values = self.encoder._feedforward(input)
+        last_layer = encoder_values[1][-1]
         parameters_count = len(last_layer)//2
         mu = last_layer[:parameters_count]
         log_var = last_layer[parameters_count:]
-        return ((z_values, a_values), mu, log_var)
+        return (mu, log_var, encoder_values)
 
     def encode(self, input):
         last_layer = self.encoder.feedforward(input)
@@ -79,7 +81,7 @@ class VAE(BaseNetwork):
         return (mu, log_var)
 
     def _gen(self, mu, log_variance) -> Tuple[np.ndarray, np.ndarray]:
-        epsilon = np.random.randn(len(mu)).reshape(-1, 1)
+        epsilon = self.epsilon_max * np.random.randn(len(mu)).reshape(-1, 1)
         z = mu + np.exp(0.5 * log_variance) * epsilon
         return (z, epsilon)
 
@@ -104,17 +106,17 @@ class VAE(BaseNetwork):
         self.encoder.init_gradients()
         self.decoder.init_gradients()
 
-    def gen_backprop(self, dL_dz, mu, log_variance, epsilon, Beta):
+    def gen_backprop(self, dL_dz, mu, log_variance, epsilon):
         # This calculation is derived by taking the partial
         # derivative of loss with respect to mu.
-        dL_dmu = dL_dz + Beta*mu/self.latent_size
+        dL_dmu = dL_dz + self.beta*mu/self.latent_size
 
         # This calculation is derived by taking the partial
         # derivative of loss with respect to logvar.
         dL_dlogvar = \
             dL_dz \
             * epsilon/2*np.exp(log_variance/2) \
-            - Beta*(1-np.exp(log_variance))/self.latent_size/2
+            - self.beta*(1-np.exp(log_variance))/self.latent_size/2
 
         return np.concatenate((dL_dmu, dL_dlogvar), axis=0)
 
@@ -123,12 +125,11 @@ class VAE(BaseNetwork):
         self.decoder.update_coefficients(learning_rate, batch, losses)
 
     def backpropagate(self, data_point, print_epochs, dL_dz=None):
-        Beta = 1
-
         reconstruction_loss = 0
         kl_loss = 0
 
-        feedforward_values, mu, log_var = self._encode(data_point)
+        mu, log_var, encoder_values = self._encode(data_point)
+
         generated, epsilon = self._gen(mu, log_var)
 
         decoder_loss, dL_dz = self.decoder.backpropagate(
@@ -136,7 +137,7 @@ class VAE(BaseNetwork):
             print_epochs
         )
 
-        dL_dz = self.gen_backprop(dL_dz, mu, log_var, epsilon, Beta)
+        dL_dz = self.gen_backprop(dL_dz, mu, log_var, epsilon)
 
         reconstruction_loss += decoder_loss[Loss.RECONSTRUCTION_LOSS]
         kl_loss += self.kl_loss(mu, log_var)[Loss.KL_LOSS]
@@ -145,10 +146,11 @@ class VAE(BaseNetwork):
             [data_point[0]],
             False,
             dL_dz=dL_dz,
-            feedforward_values=feedforward_values
+            feedforward_values=encoder_values
         )
 
         return ({
             Loss.RECONSTRUCTION_LOSS: reconstruction_loss,
-            Loss.KL_LOSS: kl_loss
+            Loss.KL_LOSS: kl_loss,
+            Loss.TOTAL_LOSS: reconstruction_loss + kl_loss
         }, None)

@@ -80,6 +80,38 @@ network according to the layers in the network.
             self.coefs[Coefficients.WEIGHTS][i] = init_weights
             self.coefs[Coefficients.BIASES][i] = init_bias
 
+    def _custom_feedforward(
+        self,
+        input_val: np.ndarray,
+        layers,
+        weight_name,
+        bias_name
+    ):
+        """This functions takes an input and returns the z values \
+and activations of the network after a feedforward. The output does \
+not trigger the activation function.
+
+        :param input_val should be a numpy array where the first element is \
+the input, and the second element is the true output.
+        """
+
+        num_layers = len(layers) - 1
+        activations: List = [None] * num_layers
+        zs: List = [None] * num_layers
+
+        last_activations = input_val[0]
+        for i, _ in enumerate(activations):
+            zs[i], activations[i] = self.feedforward_custom_layer(
+                i,
+                last_activations,
+                i == len(activations)-1,
+                weight_name,
+                bias_name
+            )
+            last_activations = activations[i]
+
+        return (zs, activations)
+
     def _feedforward(self, input_val: np.ndarray) -> Tuple[List, List]:
         """This functions takes an input and returns the z values \
 and activations of the network after a feedforward.
@@ -88,23 +120,29 @@ and activations of the network after a feedforward.
 the input, and the second element is the true output.
         """
 
-        num_layers = len(self.layers) - 1
-        activations: List = [None] * num_layers
-        zs: List = [None] * num_layers
-
-        last_activations = input_val[0]
-        for i, _ in enumerate(activations):
-            zs[i], activations[i] = self.feedforward_layer(
-                i,
-                last_activations,
-                i == len(activations)-1
-            )
-            last_activations = activations[i]
-
-        return (zs, activations)
+        return self._custom_feedforward(
+            input_val,
+            self.layers,
+            Coefficients.WEIGHTS,
+            Coefficients.BIASES
+        )
 
     def feedforward(self, input):
         return self._feedforward(input)[1][-1]
+
+    def feedforward_custom_layer(
+        self,
+        i: int,
+        last_activations: np.ndarray,
+        force_linear: bool,
+        weight_name: str,
+        bias_name: str
+    ):
+        z = np.matmul(
+            self.coefs[weight_name][i], last_activations
+        ) + self.coefs[bias_name][i]
+        activation_function = self.activation if not force_linear else linear
+        return (z, activation_function(z))
 
     def feedforward_layer(
         self,
@@ -112,11 +150,13 @@ the input, and the second element is the true output.
         last_activations: np.ndarray,
         force_linear: bool
     ) -> Tuple[np.ndarray, np.ndarray]:
-        z = np.matmul(
-            self.coefs[Coefficients.WEIGHTS][i], last_activations
-        ) + self.coefs[Coefficients.BIASES][i]
-        activation_function = self.activation if not force_linear else linear
-        return (z, activation_function(z))
+        return self.feedforward_custom_layer(
+            i,
+            last_activations,
+            force_linear,
+            Coefficients.WEIGHTS,
+            Coefficients.BIASES
+        )
 
     def loss(self, y_true, y_pred):
         n = y_true[1].shape[0]  # Number of samples
