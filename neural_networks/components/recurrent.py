@@ -87,6 +87,23 @@ network according to the layers in the network.
             Coefficients.STATE_BIASES
         )
 
+    def get_time_seperated_data(self, input_data):
+        """This function divides the input data into evenly sized vectors\
+    with one for each time step.
+        """
+        input_layer_size = self.encoder_layers[0]
+        input_data_size = input_data[0].shape[0]
+
+        assert input_data_size % input_layer_size == 0,\
+            "Input data cannot be divided evenly into input layer"
+
+        return_array = np.empty((len(input_data),), dtype=np.ndarray)
+        for i, data_point in enumerate(input_data):
+            return_array[i] = data_point.reshape(
+                data_point.shape[0]//input_layer_size, input_layer_size, 1)
+
+        return return_array
+
     def _feedforward(self, input_val: np.ndarray) -> Tuple[List, List]:
         """This functions takes an input and returns the z values \
 and activations of the network after a feedforward. Returns a tuple \
@@ -97,14 +114,29 @@ the second element is the a layer of the final time step.
 the input, and the second element is the true output.
         """
 
-        """
         hidden_state = np.zeros(self.input_layer[-1], 1)
+        output = np.empty((len(input_val[0])))
+        for i, time_step in enumerate(input_val[0]):
+            next_input = np.concatenate(time_step, hidden_state)
 
-        for each time step:
-            next_input = np.concatenate(input_val[0][time step], hidden_state)
+            raw_state = self._custom_feedforward(
+                next_input,
+                self.input_layers,
+                Coefficients.INPUT_WEIGHTS,
+                Coefficients.INPUT_BIASES
+            )
+            hidden_state = self._custom_feedforward(
+                raw_state,
+                self.state_layers,
+                Coefficients.STATE_WEIGHTS,
+                Coefficients.STATE_BIASES
+            )
+            feedforward_output = self._custom_feedforward(
+                raw_state,
+                self.output_layers,
+                Coefficients.OUTPUT_WEIGHTS,
+                Coefficients.OUTPUT_BIASES
+            )
+            output[i] = feedforward_output
 
-            raw_state self._custom_feedforward(self.input_layers, next_input)
-            hidden_state = self._custom_feedforward(self.state_layers, raw_state)
-            output = self._custom_feedforward(self.output_layers)
-
-        """
+        return output[-1][0], output[-1][1]

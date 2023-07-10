@@ -45,7 +45,7 @@ class VAE(BaseNetwork):
 
         self.init_coefficients()
         self.beta = 1
-        self.epsilon_max = 0.01
+        self.epsilon_max = 0.1
 
     def init_coefficients(self):
         self.encoder.init_coefficients()
@@ -146,7 +146,7 @@ class VAE(BaseNetwork):
             [data_point[0]],
             False,
             dL_dz=dL_dz,
-            feedforward_values=encoder_values
+            _feedforward_values=encoder_values
         )
 
         return ({

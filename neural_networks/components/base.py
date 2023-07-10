@@ -323,13 +323,16 @@ to testing.
         data_point,
         print_epochs,
         dL_dz=None,
-        feedforward_values=None
+        _feedforward_values=None
     ):
         reconstruction_loss = 0
 
-        z_values, activations = feedforward_values\
-            if feedforward_values is not None\
+        feedforward_values = _feedforward_values\
+            if _feedforward_values is not None\
             else self._feedforward(data_point)
+
+        z_values = feedforward_values[0]
+        activations = feedforward_values[1]
 
         # Partial Derivative of Loss with respect to the output activations
         dL_daL = dL_dz if dL_dz is not None else\
