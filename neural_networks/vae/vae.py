@@ -40,8 +40,8 @@ class VAE(BaseNetwork):
 
         self.latent_size = self.decoder_layers[0]
 
-        self.encoder: sub_network = sub_network(e_layers)
-        self.decoder: sub_network = sub_network(decoder_layers)
+        self.encoder: BaseNetwork = sub_network(e_layers)
+        self.decoder: BaseNetwork = sub_network(decoder_layers)
 
         self.init_coefficients()
         self.beta = 1
