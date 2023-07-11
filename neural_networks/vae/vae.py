@@ -7,6 +7,7 @@ from neural_networks.components.optimizer.optimizer import Optimizer
 from neural_networks.components.optimizer.adam_w_taperoff import AdamTaperoff
 from neural_networks.components.loss_types import Loss
 from neural_networks.components.coefs import Coefficients
+from neural_networks.components.feedforward_data import FeedforwardData
 import numpy as np
 from typing import Tuple
 
@@ -45,7 +46,7 @@ class VAE(BaseNetwork):
 
         self.init_coefficients()
         self.beta = 1
-        self.epsilon_max = 0.1
+        self.epsilon_max = 0
 
     def init_coefficients(self):
         self.encoder.init_coefficients()
@@ -65,9 +66,20 @@ class VAE(BaseNetwork):
             Loss.KL_LOSS: kl_loss
         }
 
-    def _encode(self, input):
-        encoder_values = self.encoder._feedforward(input)
-        last_layer = encoder_values[1][-1]
+    def get_time_seperated_data(self, input_data):
+        return self.encoder.get_time_seperated_data(input_data)
+
+    def _encode(self, input, num_inputs):
+        encoder_values = self.encoder._feedforward(
+            input,
+            num_inputs=num_inputs,
+            num_outputs=1
+        )
+
+        # Get the output, then the last time step,
+        # then the activations, and then the last
+        # layer of activations
+        last_layer = encoder_values[FeedforwardData.OUTPUT][-1][1][-1]
         parameters_count = len(last_layer)//2
         mu = last_layer[:parameters_count]
         log_var = last_layer[parameters_count:]
@@ -124,11 +136,20 @@ class VAE(BaseNetwork):
         self.encoder.update_coefficients(learning_rate, batch, losses)
         self.decoder.update_coefficients(learning_rate, batch, losses)
 
-    def backpropagate(self, data_point, print_epochs, dL_dz=None):
+    def backpropagate(
+        self,
+        data_point,
+        print_epochs,
+        time_separated_values: bool,
+        dL_dz=None
+    ):
         reconstruction_loss = 0
         kl_loss = 0
 
-        mu, log_var, encoder_values = self._encode(data_point)
+        num_inputs = len(data_point) if time_separated_values else 1
+        mu, log_var, encoder_values = self._encode(
+            data_point, num_inputs=num_inputs
+        )
 
         generated, epsilon = self._gen(mu, log_var)
 

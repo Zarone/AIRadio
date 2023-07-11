@@ -48,11 +48,13 @@ network.train(
 """
 
 network: VAE = VAE(
-    encoder_layers=(5, 4, 3, 3),
-    decoder_layers=(3, 3, 4, 5),
+    encoder_layers=(5, 4, 3),
+    decoder_layers=(3, 4, 5),
     sub_network=BaseNetwork
 )
+# time_separated_sounds = network.get_time_seperated_data(sounds)
 network.train(
+    # time_separated_sounds,
     sounds,
     batch_size=5,
     max_epochs=20000,

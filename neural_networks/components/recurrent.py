@@ -8,18 +8,12 @@ from neural_networks.components.optimizer.optimizer import Optimizer
 from neural_networks.components.optimizer.adam_w_taperoff import AdamTaperoff
 from neural_networks.components.coefs import Coefficients
 from neural_networks.components.loss_types import Loss
+from neural_networks.components.feedforward_data import FeedforwardData
 import numpy as np
-from typing import Tuple, List
+from typing import Tuple
 
 
 class Recurrent(BaseNetwork):
-
-    # Just to prevent magic strings constants
-    FEEDFORWARD_DATA = {
-        "OUTPUT": "OUTPUT",
-        "INPUT": "INPUT",
-        "HIDDEN_STATE": "HIDDEN_STATE"
-    }
 
     def __init__(
         self,
@@ -36,25 +30,34 @@ class Recurrent(BaseNetwork):
         self.activation_derivative = activation_derivative
 
         if input_layers is None:
-            self.input_layers = input_layers[:-1]
+            self.input_layers = ((layers[0] + layers[-2]),) + tuple(layers[1:-1])
         else:
-            self.input_layers = input_layers
+            self.input_layers = layers
 
         if output_layers is None:
-            self.output_layers = (input_layers[-2], input_layers[-1])
+            self.output_layers = (layers[-2], layers[-1])
         else:
             self.output_layers = output_layers
 
         if state_layers is None:
-            self.state_layers = (input_layers[-2], input_layers[-2])
+            self.state_layers = (layers[-2], layers[-2])
         else:
             self.state_layers = state_layers
 
         self.coefs = {}
         self.init_coefficients()
 
-        # These are used in training
-        self.coef_gradients = {}
+        # These are used in training.
+        # If not declared as None, we get a
+        # key error later.
+        self.coef_gradients = {
+            Coefficients.INPUT_WEIGHTS: None,
+            Coefficients.INPUT_BIASES: None,
+            Coefficients.OUTPUT_WEIGHTS: None,
+            Coefficients.OUTPUT_BIASES: None,
+            Coefficients.STATE_WEIGHTS: None,
+            Coefficients.STATE_BIASES: None,
+        }
 
     def init_coefficients_from_layer(
         self,
@@ -102,7 +105,7 @@ network according to the layers in the network.
         """This function divides the input data into evenly sized vectors\
     with one for each time step.
         """
-        input_layer_size = self.encoder_layers[0]
+        input_layer_size = self.input_layers[0] - self.state_layers[0]
         input_data_size = input_data[0].shape[0]
 
         assert input_data_size % input_layer_size == 0,\
@@ -132,11 +135,11 @@ should be arrays where each element represents a time step.
         """
 
         # Returned for backpropagation use
-        input_processing_data = np.empty((num_outputs))
-        hidden_state_processing_data = np.empty((num_outputs))
-        output_processing_data = np.empty((num_outputs))
+        input_processing_data = np.empty((num_outputs), dtype=np.ndarray)
+        hidden_state_processing_data = np.empty((num_outputs), dtype=np.ndarray)
+        output_processing_data = np.empty((num_outputs), dtype=np.ndarray)
 
-        hidden_state = np.zeros(self.input_layer[-1], 1)
+        hidden_state = np.zeros((self.input_layers[-1], 1))
 
         for i in range(num_outputs):
             time_step = None
@@ -145,13 +148,14 @@ should be arrays where each element represents a time step.
             else:
                 time_step = input_val[0][i]
 
-            input_value = np.concatenate(hidden_state, time_step)
-            input_processing_data[i] = self._custom_feedforward(
+            input_value = np.concatenate((hidden_state, time_step))
+            input_processing_data_i = self._custom_feedforward(
                 input_value,
                 self.input_layers,
                 Coefficients.INPUT_WEIGHTS,
                 Coefficients.INPUT_BIASES
             )
+            input_processing_data[i] = input_processing_data_i
             input_z_values, input_activations = input_processing_data[i]
             raw_state = input_activations[-1]
 
@@ -173,9 +177,9 @@ should be arrays where each element represents a time step.
             )
 
         return {
-            self.FEEDFORWARD_DATA.OUTPUT: output_processing_data,
-            self.FEEDFORWARD_DATA.INPUT: input_processing_data,
-            self.FEEDFORWARD_DATA.HIDDEN_STATE: hidden_state_processing_data
+            FeedforwardData.OUTPUT: output_processing_data,
+            FeedforwardData.INPUT: input_processing_data,
+            FeedforwardData.HIDDEN_STATE: hidden_state_processing_data
         }
 
     def custom_backpropagate(

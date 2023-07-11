@@ -13,6 +13,7 @@ from neural_networks.components.activations import (
 from neural_networks.components.base import BaseNetwork
 from neural_networks.components.loss_types import Loss
 from neural_networks.components.coefs import Coefficients
+from neural_networks.components.feedforward_data import FeedforwardData
 import numpy as np
 
 
@@ -105,7 +106,7 @@ def component_test(Tester):
         module.tester(
             "Network Feedforward 2",
             module.eq(
-                network._feedforward(np.array([inputs, inputs])),
+                network._feedforward(np.array([inputs, inputs]))[FeedforwardData.OUTPUT][-1],
                 (expected_zs, expected_activations)
             )
         )

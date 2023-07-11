@@ -8,6 +8,7 @@ from neural_networks.components.activations import (
 )
 from neural_networks.components.loss_types import Loss
 from neural_networks.components.coefs import Coefficients
+from neural_networks.components.feedforward_data import FeedforwardData
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Any, Tuple, List
@@ -99,7 +100,7 @@ the input, and the second element is the true output.
         activations: List = [None] * num_layers
         zs: List = [None] * num_layers
 
-        last_activations = input_val[0]
+        last_activations = input_val
         for i, _ in enumerate(activations):
             zs[i], activations[i] = self.feedforward_custom_layer(
                 i,
@@ -112,23 +113,28 @@ the input, and the second element is the true output.
 
         return (zs, activations)
 
-    def _feedforward(self, input_val: np.ndarray) -> Tuple[List, List]:
+    # I pass in args here just to prevent an error
+    # in _feedforward overrides in inherited classes.
+    def _feedforward(self, input_val: np.ndarray, **_) -> Tuple[List, List]:
         """This functions takes an input and returns the z values \
 and activations of the network after a feedforward.
 
         :param input_val should be a numpy array where the first element is \
 the input, and the second element is the true output.
         """
-
-        return self._custom_feedforward(
-            input_val,
+        output = self._custom_feedforward(
+            input_val[0],
             self.layers,
             Coefficients.WEIGHTS,
             Coefficients.BIASES
         )
 
+        return {
+            FeedforwardData.OUTPUT: [output]
+        }
+
     def feedforward(self, input):
-        return self._feedforward(input)[1][-1]
+        return self._feedforward(input)[FeedforwardData.OUTPUT][-1][1][-1]
 
     def feedforward_custom_layer(
         self,
@@ -221,17 +227,13 @@ to testing.
         test_data: (np.ndarray | None) = None,
         learning_rate=0.05,
         graph=False,
-        print_epochs=True
+        print_epochs=True,
+        time_seperated_values: bool = False
     ) -> None:
         losses = {}
         test_losses = {}
 
         training_data = np.array(_training_data, copy=True)
-
-        assert training_data.shape[1] == 2\
-            and training_data.shape[2] == self.layers[0],\
-            f"Expected shape of (N, 2, {self.layers[0]}, 1), " + \
-            f"but got {training_data.shape}"
 
         per_epoch = len(training_data) // batch_size
 
@@ -244,7 +246,10 @@ to testing.
                 batch = training_data[index:index+batch_size]
 
                 loss_dictionary = self.training_step(
-                    batch, learning_rate, print_epochs
+                    batch,
+                    learning_rate,
+                    print_epochs,
+                    time_seperated_values=time_seperated_values
                 )
 
                 for key, value in loss_dictionary.items():
@@ -279,19 +284,15 @@ to testing.
             self.graph_loss(losses, test_losses)
 
     def init_gradients(self):
-        if (
-            self.coef_gradients[Coefficients.WEIGHTS] is None or
-            self.coef_gradients[Coefficients.BIASES] is None
-        ):
-            self.coef_gradients[Coefficients.WEIGHTS] = \
-                np.empty(self.coefs[Coefficients.WEIGHTS].shape, np.ndarray)
-            self.coef_gradients[Coefficients.BIASES] = \
-                np.empty(self.coefs[Coefficients.BIASES].shape, np.ndarray)
-        for i, _ in enumerate(self.coef_gradients[Coefficients.WEIGHTS]):
-            self.coef_gradients[Coefficients.WEIGHTS][i] = \
-                np.zeros(self.coefs[Coefficients.WEIGHTS][i].shape)
-            self.coef_gradients[Coefficients.BIASES][i] = \
-                np.zeros(self.coefs[Coefficients.BIASES][i].shape)
+        for coef in self.coefs.keys():
+            if self.coef_gradients[coef] is None:
+                self.coef_gradients[coef] = np.empty(
+                    self.coefs[coef].shape, np.ndarray
+                )
+            for i, _ in enumerate(self.coef_gradients[coef]):
+                self.coef_gradients[coef][i] = np.zeros(
+                    self.coefs[coef][i].shape
+                )
 
     def update_coefficients(self, learning_rate, batch, losses):
         for key, value in self.coefs.items():
@@ -303,13 +304,23 @@ to testing.
                     else losses[Loss.RECONSTRUCTION_LOSS]
                 )
 
-    def training_step(self, batch, learning_rate, print_epochs):
+    def training_step(
+        self,
+        batch,
+        learning_rate,
+        print_epochs,
+        time_seperated_values
+    ):
         self.init_gradients()
 
         losses = {}
 
         for _, data_point in enumerate(batch):
-            delta_loss, _ = self.backpropagate(data_point, print_epochs)
+            delta_loss, _ = self.backpropagate(
+                data_point,
+                print_epochs,
+                time_separated_values=time_seperated_values
+            )
             for key, value in delta_loss.items():
                 losses.setdefault(key, 0)
                 losses[key] += value
@@ -323,13 +334,14 @@ to testing.
         data_point,
         print_epochs,
         dL_dz=None,
-        _feedforward_values=None
+        _feedforward_values=None,
+        time_separated_values=False
     ):
         reconstruction_loss = 0
 
-        feedforward_values = _feedforward_values\
+        feedforward_values = _feedforward_values[FeedforwardData.OUTPUT][-1]\
             if _feedforward_values is not None\
-            else self._feedforward(data_point)
+            else self._feedforward(data_point)[FeedforwardData.OUTPUT][-1]
 
         z_values = feedforward_values[0]
         activations = feedforward_values[1]
