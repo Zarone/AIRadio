@@ -72,8 +72,8 @@ network.train(
     batch_size=5,
     max_epochs=20000,
     graph=True,
-    learning_rate=0.01,
-    time_seperated_values=True
+    learning_rate=0.001,
+    time_seperated_input=True
 )
 
 

@@ -258,6 +258,22 @@ represents a time step.
         )
 
         for i in range(num_iterations-1, -1, -1):
+            true_output = None
+            predicted_output = None
+
+            if num_outputs > 1:
+                true_output = data_point[1][i]
+                # Get time stamp i, then the activations,
+                # and then the last layer of activations.
+                predicted_output = output_processing_data[i][1][-1]
+
+            if print_epochs:
+                delta_reconstruction_loss = self.loss(
+                    true_output,
+                    predicted_output
+                )
+                reconstruction_loss += delta_reconstruction_loss[Loss.RECONSTRUCTION_LOSS]
+
             dL_dz = self.custom_backpropagate(
                 self.input_layers,
                 dL_dz,
@@ -283,9 +299,6 @@ represents a time step.
             # which means that another output must be factored
             # into the gradient calculation.
             if num_outputs > 1:
-                true_output = data_point[1][i]
-                predicted_output = output_processing_data[i][1][-1]
-
                 dL_dOutput = (
                     predicted_output - true_output
                 ) * (2/len(predicted_output))

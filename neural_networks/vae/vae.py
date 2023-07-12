@@ -131,7 +131,7 @@ class VAE(BaseNetwork):
         self,
         data_point,
         print_epochs,
-        time_separated_values: bool,
+        time_separated_input: bool,
         _feedforward_values=None,
         dL_dz=None
     ):
@@ -140,7 +140,7 @@ class VAE(BaseNetwork):
 
         mu, log_var, encoder_values = self._encode(
             data_point[0],
-            time_separated_values
+            time_separated_input
         )
 
         generated, epsilon = self._gen(mu, log_var)
@@ -163,11 +163,13 @@ class VAE(BaseNetwork):
 
         encoder_loss, _ = self.encoder.backpropagate(
             [data_point[0]],
+            # print_epochs is false because there is no objective
+            # output for the latent space values.
             False,
-            dL_dz=dL_dz,
+            time_separated_input=time_separated_input,
             _feedforward_values=encoder_values,
-            num_inputs=num_inputs,
-            num_outputs=1
+            num_outputs=1,
+            dL_dz=dL_dz
         )
 
         return ({

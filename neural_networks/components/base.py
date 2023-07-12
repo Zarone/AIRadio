@@ -230,7 +230,7 @@ to testing.
         self,
         _training_data: np.ndarray,
         max_epochs: int,
-        time_seperated_values: bool,
+        time_seperated_input: bool,
         batch_size: int = 100,
         test_data: (np.ndarray | None) = None,
         learning_rate=0.05,
@@ -258,7 +258,7 @@ to testing.
                     batch,
                     learning_rate,
                     print_epochs,
-                    time_seperated_values=time_seperated_values,
+                    time_seperated_input=time_seperated_input,
                     num_inputs=num_inputs,
                     num_outputs=num_outputs
                 )
@@ -320,7 +320,7 @@ to testing.
         batch,
         learning_rate,
         print_epochs,
-        time_seperated_values,
+        time_seperated_input,
         num_inputs,
         num_outputs
     ):
@@ -332,7 +332,7 @@ to testing.
             delta_loss, _ = self.backpropagate(
                 data_point,
                 print_epochs,
-                time_separated_values=time_seperated_values,
+                time_separated_input=time_seperated_input,
             )
             for key, value in delta_loss.items():
                 losses.setdefault(key, 0)
