@@ -32,6 +32,11 @@ class VAE(BaseNetwork):
         self.encoder: BaseNetwork = sub_network(**encoder_args)
         self.decoder: BaseNetwork = sub_network(**decoder_args)
 
+        # This is just for better error handling, specifically
+        # if the two initial arguments for the encoder and
+        # decoder aren't compatible.
+        sub_network.check_vae_compatibility(self.encoder, self.decoder)
+
         self.init_coefficients()
         self.beta = 1
         self.epsilon_max = 0
@@ -58,7 +63,6 @@ class VAE(BaseNetwork):
         return self.encoder.get_time_seperated_data(input_data)
 
     def _encode(self, input, time_separated_inputs: bool):
-
         num_inputs = len(input) if time_separated_inputs else 1
 
         encoder_values = self.encoder._feedforward(
@@ -67,10 +71,17 @@ class VAE(BaseNetwork):
             iterations=num_inputs
         )
 
-        # Get the output, then the last time step,
-        # then the activations, and then the last
-        # layer of activations
-        last_layer = encoder_values[FeedforwardData.OUTPUT][-1][1][-1]
+        last_layer = None
+        if time_separated_inputs:
+            # Get the output, then the last time step,
+            # then the activations, and then the last
+            # layer of activations.
+            last_layer = encoder_values[FeedforwardData.OUTPUT][-1][1][-1]
+        else:
+            # Get the output, then the activations, and
+            # then the last layer of the activations.
+            last_layer = encoder_values[FeedforwardData.OUTPUT][1][-1]
+
         parameters_count = len(last_layer)//2
         mu = last_layer[:parameters_count]
         log_var = last_layer[parameters_count:]
@@ -131,7 +142,7 @@ class VAE(BaseNetwork):
         self,
         data_point,
         print_epochs,
-        time_separated_input: bool,
+        time_separated: bool,
         _feedforward_values=None,
         dL_dz=None
     ):
@@ -140,19 +151,16 @@ class VAE(BaseNetwork):
 
         mu, log_var, encoder_values = self._encode(
             data_point[0],
-            time_separated_input
+            time_separated
         )
 
         generated, epsilon = self._gen(mu, log_var)
 
-        decoder_input = np.empty((2,), dtype=np.ndarray)
-        decoder_input[0] = generated
-        decoder_input[1] = data_point[1]
-
         decoder_loss, dL_dz = self.decoder.backpropagate(
-            decoder_input,
+            [generated, data_point[1]],
             print_epochs,
             time_separated_input=False,
+            time_separated_output=time_separated,
             num_outputs=len(data_point[0])
         )
 
@@ -166,8 +174,9 @@ class VAE(BaseNetwork):
             # print_epochs is false because there is no objective
             # output for the latent space values.
             False,
-            time_separated_input=time_separated_input,
-            _feedforward_values=encoder_values,
+            time_separated_input=time_separated,
+            time_separated_output=False,
+            init_feedforward_values=encoder_values,
             num_outputs=1,
             dL_dz=dL_dz
         )

@@ -17,6 +17,7 @@ class Recurrent(BaseNetwork):
 
     def __init__(
         self,
+        input_size: int,
         input_layers: Tuple[int, ...],
         output_layers: Tuple[int, ...],
         state_layers: Tuple[int, ...],
@@ -24,6 +25,11 @@ class Recurrent(BaseNetwork):
         activation_derivative=leaky_relu_derivative,
         optimizer: Optimizer = AdamTaperoff
     ) -> None:
+
+        assert input_layers[0] == input_size + state_layers[0],\
+            "First input layers should be the sum of the state size " +\
+            " and the input size"
+
         self.optimizer = optimizer()
         self.activation = activation
         self.activation_derivative = activation_derivative
@@ -170,45 +176,17 @@ represents a time step.
             FeedforwardData.HIDDEN_STATE: hidden_state_processing_data
         }
 
-    def custom_backpropagate(
-        self,
-        layers,
-        start_dL_dz,
-        z_values,
-        activations,
-        weight_name,
-        bias_name
-    ):
-        assert len(z_values) == len(self.coefs[weight_name]) + 1
-        assert len(z_values) == len(layers)
-
-        num_layers = len(layers)
-        final_layer = num_layers - 2
-        dL_dz = start_dL_dz
-
-        for i in range(final_layer, -1, -1):
-            self.coef_gradients[weight_name][i] += np.matmul(
-                dL_dz, activations[i].T
-            )
-            self.coef_gradients[bias_name][i] += dL_dz
-
-            activation_derivative_func = self.activation_derivative\
-                if i != final_layer else linear_derivative
-
-            dL_dz = np.matmul(
-                self.coefs[weight_name][i].T,
-                dL_dz
-            ) * activation_derivative_func(z_values[i])
-
-        return dL_dz
+    def feedforward(self, input):
+        return self._feedforward(input)[FeedforwardData.OUTPUT][-1][1][-1]
 
     def backpropagate(
         self,
         data_point,
         print_epochs,
         time_separated_input,
+        time_separated_output,
         dL_dz=None,
-        _feedforward_values=None,
+        init_feedforward_values=None,
         num_outputs=-1
     ):
         assert num_outputs > 0 or time_separated_input,\
@@ -220,8 +198,8 @@ represents a time step.
         num_iterations = len(data_point[0]) \
             if time_separated_input else num_outputs
 
-        feedforward_values = _feedforward_values\
-            if _feedforward_values is not None\
+        feedforward_values = init_feedforward_values\
+            if init_feedforward_values is not None\
             else self._feedforward(
                 data_point[0],
                 time_separated_input,
@@ -261,7 +239,7 @@ represents a time step.
             true_output = None
             predicted_output = None
 
-            if num_outputs > 1:
+            if time_separated_output:
                 true_output = data_point[1][i]
                 # Get time stamp i, then the activations,
                 # and then the last layer of activations.

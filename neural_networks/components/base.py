@@ -4,7 +4,8 @@ import neural_networks.components.config as config
 from neural_networks.components.activations import (
     leaky_relu_derivative,
     leaky_relu,
-    linear
+    linear,
+    linear_derivative
 )
 from neural_networks.components.loss_types import Loss
 from neural_networks.components.coefs import Coefficients
@@ -121,7 +122,7 @@ the input, and the second element is the true output.
 and activations of the network after a feedforward.
 
         :param input_val should be a numpy array where each \
-element is the activation value to the first neural network \
+element is an activation value to the first neural network \
 layer.
         """
 
@@ -137,11 +138,11 @@ layer.
         )
 
         return {
-            FeedforwardData.OUTPUT: [output]
+            FeedforwardData.OUTPUT: output
         }
 
     def feedforward(self, input):
-        return self._feedforward(input)[FeedforwardData.OUTPUT][-1][1][-1]
+        return self._feedforward(input)[FeedforwardData.OUTPUT][1][-1]
 
     def feedforward_custom_layer(
         self,
@@ -172,10 +173,10 @@ layer.
         )
 
     def loss(self, y_true, y_pred):
-        n = y_true[1].shape[0]  # Number of samples
+        n = y_true.shape[0]  # Number of samples
 
         # Reconstruction loss
-        diff = y_true[1] - y_pred
+        diff = y_true - y_pred
         reconstruction_loss = np.sum(np.square(diff)) / n
 
         return {
@@ -332,7 +333,7 @@ to testing.
             delta_loss, _ = self.backpropagate(
                 data_point,
                 print_epochs,
-                time_separated_input=time_seperated_input,
+                time_separated=time_seperated_input,
             )
             for key, value in delta_loss.items():
                 losses.setdefault(key, 0)
@@ -342,20 +343,53 @@ to testing.
 
         return losses
 
+    def custom_backpropagate(
+        self,
+        layers,
+        start_dL_dz,
+        z_values,
+        activations,
+        weight_name,
+        bias_name
+    ):
+        assert len(z_values) == len(self.coefs[weight_name]) + 1
+        assert len(z_values) == len(layers)
+
+        num_layers = len(layers)
+        final_layer = num_layers - 2
+        dL_dz = start_dL_dz
+
+        for i in range(final_layer, -1, -1):
+            self.coef_gradients[weight_name][i] += np.matmul(
+                dL_dz, activations[i].T
+            )
+            self.coef_gradients[bias_name][i] += dL_dz
+
+            activation_derivative_func = self.activation_derivative\
+                if i != final_layer else linear_derivative
+
+            dL_dz = np.matmul(
+                self.coefs[weight_name][i].T,
+                dL_dz
+            ) * activation_derivative_func(z_values[i])
+
+        return dL_dz
+
     def backpropagate(
         self,
         data_point,
         print_epochs,
-        time_separated_values: bool,
-        _feedforward_values=None,
+        time_separated_input: bool,
+        time_separated_output: bool,
+        dL_dz=None,
+        init_feedforward_values=None,
         num_outputs=1,
-        dL_dz=None
     ):
         reconstruction_loss = 0
 
-        feedforward_values = _feedforward_values[FeedforwardData.OUTPUT][-1]\
-            if _feedforward_values is not None\
-            else self._feedforward(data_point)[FeedforwardData.OUTPUT][-1]
+        feedforward_values = init_feedforward_values[FeedforwardData.OUTPUT]\
+            if init_feedforward_values is not None\
+            else self._feedforward(data_point[0])[FeedforwardData.OUTPUT]
 
         z_values = feedforward_values[0]
         activations = feedforward_values[1]
@@ -366,50 +400,55 @@ to testing.
 
         if print_epochs:
             delta_reconstruction_loss = self.loss(
-                data_point, activations[-1]
+                data_point[1], activations[-1]
             )[Loss.RECONSTRUCTION_LOSS]
             reconstruction_loss += delta_reconstruction_loss
 
-        len_z = len(z_values)
+        # len_z = len(z_values)
 
-        decoder_gradients_z = np.array([None] * len_z)
+        # decoder_gradients_z = np.array([None] * len_z)
 
-        decoder_gradients_z[-1] = dL_daL
+        # decoder_gradients_z[-1] = dL_daL
 
-        last_index = len_z - 1
+        # last_index = len_z - 1
 
-        for j in range(last_index, -1, -1):
-            z_layer = z_values[j]
-            if j != last_index:
-                activation_derivative_func = self.activation_derivative
-                decoder_gradients_z[j] = np.matmul(
-                    self.coefs[Coefficients.WEIGHTS][j+1].transpose(),
-                    decoder_gradients_z[j+1]
-                ) * activation_derivative_func(z_layer)
+        # for j in range(last_index, -1, -1):
+            # z_layer = z_values[j]
+            # if j != last_index:
+                # activation_derivative_func = self.activation_derivative
+                # decoder_gradients_z[j] = np.matmul(
+                    # self.coefs[Coefficients.WEIGHTS][j+1].transpose(),
+                    # decoder_gradients_z[j+1]
+                # ) * activation_derivative_func(z_layer)
 
-            if j != 0:
-                self.coef_gradients[Coefficients.WEIGHTS][j] += np.matmul(
-                    decoder_gradients_z[j], activations[j-1].transpose())
-                self.coef_gradients[Coefficients.BIASES][j] += \
-                    decoder_gradients_z[j]
+            # if j != 0:
+                # self.coef_gradients[Coefficients.WEIGHTS][j] += np.matmul(
+                    # decoder_gradients_z[j], activations[j-1].transpose())
+                # self.coef_gradients[Coefficients.BIASES][j] += \
+                    # decoder_gradients_z[j]
 
-        self.coef_gradients[Coefficients.WEIGHTS][0] += np.matmul(
-            decoder_gradients_z[0], data_point[0].transpose()
-        )
-        self.coef_gradients[Coefficients.BIASES][0] += decoder_gradients_z[0]
+        # self.coef_gradients[Coefficients.WEIGHTS][0] += np.matmul(
+            # decoder_gradients_z[0], data_point[0].transpose()
+        # )
+        # self.coef_gradients[Coefficients.BIASES][0] += decoder_gradients_z[0]
 
-        output_dL_dz = np.matmul(
-            self.coefs[Coefficients.WEIGHTS][0].T,
-            decoder_gradients_z[0]
+        # output_dL_dz = np.matmul(
+            # self.coefs[Coefficients.WEIGHTS][0].T,
+            # decoder_gradients_z[0]
+        # )
+
+        output_dL_dz = self.custom_backpropagate(
+            self.layers,
+            dL_daL,
+            z_values,
+            activations,
+            Coefficients.WEIGHTS,
+            Coefficients.BIASES
         )
 
         return ({
             Loss.RECONSTRUCTION_LOSS: reconstruction_loss
         }, output_dL_dz)
-
-    @staticmethod
-    def format_unsupervised_input(input):
-        return np.stack([input, input], axis=1)
 
     def save_to_file(self, file: str):
         np.savez(
@@ -422,3 +461,17 @@ to testing.
         parameters = np.load(file, allow_pickle=True)
         self.coefs[Coefficients.WEIGHTS] = parameters['weights']
         self.coefs[Coefficients.BIASES] = parameters['biases']
+
+    @staticmethod
+    def format_unsupervised_input(input):
+        return np.stack([input, input], axis=1)
+
+    @staticmethod
+    def check_vae_compatibility(encoder, decoder):
+        assert encoder.layers[-1] == decoder.layers[0] * 2,\
+            "Expected final layer in encoder to be twice the" +\
+            " first layer in decoder"
+
+        assert encoder.layers[0] == decoder.layers[-1],\
+            "Expected the first layer in encoder to be equal to" +\
+            " the final layer in the decoder"

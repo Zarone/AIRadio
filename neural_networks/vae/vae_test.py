@@ -15,9 +15,10 @@ def vae_test(Tester):
             ]
         )
         network: VAE = VAE(
-            encoder_layers=(10, 4, 3),
-            decoder_layers=(3, 4, 10),
-            sub_network=BaseNetwork
+            encoder_args=dict(layers=(5, 4, 3)),
+            decoder_args=dict(layers=(3, 4, 5)),
+            sub_network=BaseNetwork,
+            latent_size=3
         )
         network.train(
             test_sounds,
@@ -25,12 +26,24 @@ def vae_test(Tester):
             max_epochs=1,
             graph=False,
             print_epochs=False,
-            learning_rate=0.01
+            learning_rate=0.01,
+            time_separated_input=False
         )
 
         network: VAE = VAE(
-            encoder_layers=(5, 4, 3),
-            decoder_layers=(3, 4, 5),
+            encoder_args=dict(
+                input_size=5,
+                input_layers=(9, 4),
+                state_layers=(4, 4),
+                output_layers=(4, 6)
+            ),
+            decoder_args=dict(
+                input_size=3,
+                input_layers=(7, 4),
+                state_layers=(4, 4),
+                output_layers=(4, 5)
+            ),
+            latent_size=3,
             sub_network=Recurrent
         )
         network.train(
@@ -39,5 +52,6 @@ def vae_test(Tester):
             max_epochs=1,
             graph=False,
             print_epochs=False,
-            learning_rate=0.01
+            learning_rate=0.01,
+            time_separated_input=True
         )
