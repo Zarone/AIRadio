@@ -5,7 +5,7 @@ from neural_networks.vae.vae import VAE
 from neural_networks.components.optimizer.adam_w_taperoff import AdamTaperoff
 
 AMPLITUDE_SCALE = 1
-NUM_AMPLITUDES = 5
+NUM_AMPLITUDES = 15
 NUM_FILES = 5
 
 sounds, names = audio.get_raw_data(NUM_FILES, NUM_AMPLITUDES, AMPLITUDE_SCALE)
@@ -47,19 +47,33 @@ network.train(
 )
 """
 
+# network: VAE = VAE(
+#     encoder_args=dict(layer=(5, 4, 3)),
+#     decoder_args=dict(layer=(3, 4, 5)),
+#     sub_network=BaseNetwork
+# )
 network: VAE = VAE(
-    encoder_layers=(5, 4, 3),
-    decoder_layers=(3, 4, 5),
-    sub_network=BaseNetwork
+    encoder_args=dict(
+        input_layers=(9, 4),
+        state_layers=(4, 4),
+        output_layers=(4, 6)
+    ),
+    decoder_args=dict(
+        input_layers=(7, 4),
+        state_layers=(4, 4),
+        output_layers=(4, 5)
+    ),
+    latent_size=3,
+    sub_network=Recurrent
 )
-# time_separated_sounds = network.get_time_seperated_data(sounds)
+time_separated_sounds = network.get_time_seperated_data(sounds)
 network.train(
-    # time_separated_sounds,
-    sounds,
+    time_separated_sounds,
     batch_size=5,
     max_epochs=20000,
     graph=True,
-    learning_rate=0.01
+    learning_rate=0.01,
+    time_seperated_values=True
 )
 
 

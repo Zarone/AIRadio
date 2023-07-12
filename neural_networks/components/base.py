@@ -96,20 +96,21 @@ not trigger the activation function.
 the input, and the second element is the true output.
         """
 
-        num_layers = len(layers) - 1
+        num_layers = len(layers)
         activations: List = [None] * num_layers
         zs: List = [None] * num_layers
 
-        last_activations = input_val
-        for i, _ in enumerate(activations):
-            zs[i], activations[i] = self.feedforward_custom_layer(
+        zs[0] = input_val
+        activations[0] = input_val
+
+        for i in range(num_layers-1):
+            zs[i+1], activations[i+1] = self.feedforward_custom_layer(
                 i,
-                last_activations,
-                i == len(activations)-1,
+                activations[i],
+                i == num_layers-2,
                 weight_name,
                 bias_name
             )
-            last_activations = activations[i]
 
         return (zs, activations)
 
@@ -119,11 +120,17 @@ the input, and the second element is the true output.
         """This functions takes an input and returns the z values \
 and activations of the network after a feedforward.
 
-        :param input_val should be a numpy array where the first element is \
-the input, and the second element is the true output.
+        :param input_val should be a numpy array where each \
+element is the activation value to the first neural network \
+layer.
         """
+
+        assert input_val.shape[0] == self.layers[0],\
+            f"input_val of unexpected input size {input_val.shape}" + \
+            f" when ({self.layers[0]}, 1) was expected"
+
         output = self._custom_feedforward(
-            input_val[0],
+            input_val,
             self.layers,
             Coefficients.WEIGHTS,
             Coefficients.BIASES
@@ -223,12 +230,14 @@ to testing.
         self,
         _training_data: np.ndarray,
         max_epochs: int,
+        time_seperated_values: bool,
         batch_size: int = 100,
         test_data: (np.ndarray | None) = None,
         learning_rate=0.05,
         graph=False,
         print_epochs=True,
-        time_seperated_values: bool = False
+        num_inputs=-1,
+        num_outputs=-1
     ) -> None:
         losses = {}
         test_losses = {}
@@ -249,7 +258,9 @@ to testing.
                     batch,
                     learning_rate,
                     print_epochs,
-                    time_seperated_values=time_seperated_values
+                    time_seperated_values=time_seperated_values,
+                    num_inputs=num_inputs,
+                    num_outputs=num_outputs
                 )
 
                 for key, value in loss_dictionary.items():
@@ -309,7 +320,9 @@ to testing.
         batch,
         learning_rate,
         print_epochs,
-        time_seperated_values
+        time_seperated_values,
+        num_inputs,
+        num_outputs
     ):
         self.init_gradients()
 
@@ -319,7 +332,7 @@ to testing.
             delta_loss, _ = self.backpropagate(
                 data_point,
                 print_epochs,
-                time_separated_values=time_seperated_values
+                time_separated_values=time_seperated_values,
             )
             for key, value in delta_loss.items():
                 losses.setdefault(key, 0)
@@ -333,9 +346,10 @@ to testing.
         self,
         data_point,
         print_epochs,
-        dL_dz=None,
+        time_separated_values: bool,
         _feedforward_values=None,
-        time_separated_values=False
+        num_outputs=1,
+        dL_dz=None
     ):
         reconstruction_loss = 0
 
@@ -384,9 +398,14 @@ to testing.
         )
         self.coef_gradients[Coefficients.BIASES][0] += decoder_gradients_z[0]
 
+        output_dL_dz = np.matmul(
+            self.coefs[Coefficients.WEIGHTS][0].T,
+            decoder_gradients_z[0]
+        )
+
         return ({
             Loss.RECONSTRUCTION_LOSS: reconstruction_loss
-        }, decoder_gradients_z[0])
+        }, output_dL_dz)
 
     @staticmethod
     def format_unsupervised_input(input):

@@ -17,10 +17,9 @@ class Recurrent(BaseNetwork):
 
     def __init__(
         self,
-        layers: Tuple[int, ...],
-        input_layers: Tuple[int, ...] = None,
-        output_layers: Tuple[int, ...] = None,
-        state_layers: Tuple[int, ...] = None,
+        input_layers: Tuple[int, ...],
+        output_layers: Tuple[int, ...],
+        state_layers: Tuple[int, ...],
         activation=leaky_relu,
         activation_derivative=leaky_relu_derivative,
         optimizer: Optimizer = AdamTaperoff
@@ -29,20 +28,9 @@ class Recurrent(BaseNetwork):
         self.activation = activation
         self.activation_derivative = activation_derivative
 
-        if input_layers is None:
-            self.input_layers = ((layers[0] + layers[-2]),) + tuple(layers[1:-1])
-        else:
-            self.input_layers = layers
-
-        if output_layers is None:
-            self.output_layers = (layers[-2], layers[-1])
-        else:
-            self.output_layers = output_layers
-
-        if state_layers is None:
-            self.state_layers = (layers[-2], layers[-2])
-        else:
-            self.state_layers = state_layers
+        self.input_layers = input_layers
+        self.output_layers = output_layers
+        self.state_layers = state_layers
 
         self.coefs = {}
         self.init_coefficients()
@@ -105,7 +93,7 @@ network according to the layers in the network.
         """This function divides the input data into evenly sized vectors\
     with one for each time step.
         """
-        input_layer_size = self.input_layers[0] - self.state_layers[0]
+        input_layer_size = self.input_layers[0] - self.state_layers[-1]
         input_data_size = input_data[0].shape[0]
 
         assert input_data_size % input_layer_size == 0,\
@@ -121,33 +109,33 @@ network according to the layers in the network.
     def _feedforward(
         self,
         input_val: np.ndarray,
-        num_inputs: int,
-        num_outputs: int
+        time_separated_inputs: bool,
+        iterations: int
     ) -> dict:
         """This functions takes an input and returns the z values \
 and activations of the network after a feedforward. Returns a tuple \
 where the first element is the z layer of the final time step and \
 the second element is the a layer of the final time step.
 
-        :param input_val should be a numpy array where the first element is \
-the input, and the second element is the true output. Both of these elements \
-should be arrays where each element represents a time step.
+        :param input_val should be a numpy array where each element \
+represents a time step.
         """
 
         # Returned for backpropagation use
-        input_processing_data = np.empty((num_outputs), dtype=np.ndarray)
-        hidden_state_processing_data = np.empty((num_outputs), dtype=np.ndarray)
-        output_processing_data = np.empty((num_outputs), dtype=np.ndarray)
+        input_processing_data = np.empty((iterations), dtype=np.ndarray)
+        hidden_state_processing_data = np.empty((iterations), dtype=np.ndarray)
+        output_processing_data = np.empty((iterations), dtype=np.ndarray)
 
         hidden_state = np.zeros((self.input_layers[-1], 1))
 
-        for i in range(num_outputs):
+        for i in range(iterations):
             time_step = None
-            if (num_outputs > num_inputs):
-                time_step = input_val[0][0]
+            if (time_separated_inputs):
+                time_step = input_val[i]
             else:
-                time_step = input_val[0][i]
+                time_step = input_val
 
+            pass
             input_value = np.concatenate((hidden_state, time_step))
             input_processing_data_i = self._custom_feedforward(
                 input_value,
@@ -195,19 +183,20 @@ should be arrays where each element represents a time step.
         assert len(z_values) == len(layers)
 
         num_layers = len(layers)
-        final_layer = num_layers - 1
+        final_layer = num_layers - 2
         dL_dz = start_dL_dz
+
         for i in range(final_layer, -1, -1):
-            self.coef_gradients[weight_name][i-1] += np.matmul(
+            self.coef_gradients[weight_name][i] += np.matmul(
                 dL_dz, activations[i].T
             )
-            self.coef_gradients[bias_name][i-1] += dL_dz
+            self.coef_gradients[bias_name][i] += dL_dz
 
             activation_derivative_func = self.activation_derivative\
                 if i != final_layer else linear_derivative
 
             dL_dz = np.matmul(
-                self.coefs[weight_name][i-1].T,
+                self.coefs[weight_name][i].T,
                 dL_dz
             ) * activation_derivative_func(z_values[i])
 
@@ -217,20 +206,33 @@ should be arrays where each element represents a time step.
         self,
         data_point,
         print_epochs,
+        time_separated_input,
         dL_dz=None,
-        _feedforward_values=None
+        _feedforward_values=None,
+        num_outputs=-1
     ):
+        assert num_outputs > 0 or time_separated_input,\
+            "if there are not time separated input values " + \
+            "the number of outputs must be defined"
+
         reconstruction_loss = 0
+
+        num_iterations = len(data_point[0]) \
+            if time_separated_input else num_outputs
 
         feedforward_values = _feedforward_values\
             if _feedforward_values is not None\
-            else self._feedforward(data_point)
+            else self._feedforward(
+                data_point[0],
+                time_separated_input,
+                num_iterations
+            )
 
-        output_processing_data = feedforward_values[self.FEEDFORWARD_DATA.OUTPUT]
+        output_processing_data = feedforward_values[FeedforwardData.OUTPUT]
         last_z_values = output_processing_data[-1][0]
         last_activations = output_processing_data[-1][1]
-        input_processing_data = feedforward_values[self.FEEDFORWARD_DATA.INPUT]
-        hidden_state_processing_data = feedforward_values[self.FEEDFORWARD_DATA.HIDDEN_STATE]
+        input_processing_data = feedforward_values[FeedforwardData.INPUT]
+        hidden_state_processing_data = feedforward_values[FeedforwardData.HIDDEN_STATE]
 
         # Partial Derivative of Loss with respect to the output activations
         dL_daL = dL_dz if dL_dz is not None else\
@@ -250,10 +252,12 @@ should be arrays where each element represents a time step.
             Coefficients.OUTPUT_BIASES
         )
 
-        num_inputs = len(data_point[0])
-        num_outputs = len(data_point[1])
+        dL_dInput = np.zeros(
+            (self.input_layers[0]-self.state_layers[0], 1),
+            dtype=np.float32
+        )
 
-        for i in range(num_inputs-1, -1, -1):
+        for i in range(num_iterations-1, -1, -1):
             dL_dz = self.custom_backpropagate(
                 self.input_layers,
                 dL_dz,
@@ -263,6 +267,7 @@ should be arrays where each element represents a time step.
                 Coefficients.INPUT_BIASES
             )
 
+            dL_dInput += dL_dz[self.state_layers[-1]:]
             dL_dz = dL_dz[0:self.state_layers[-1]]
 
             dL_dz = self.custom_backpropagate(
@@ -296,4 +301,4 @@ should be arrays where each element represents a time step.
 
         return ({
             Loss.RECONSTRUCTION_LOSS: reconstruction_loss
-        }, dL_dz)
+        }, dL_dInput)

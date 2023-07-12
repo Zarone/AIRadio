@@ -15,34 +15,22 @@ from typing import Tuple
 class VAE(BaseNetwork):
     def __init__(
         self,
-        encoder_layers: Tuple[int, ...],
-        decoder_layers: Tuple[int, ...],
+        encoder_args: dict,
+        decoder_args: dict,
+        latent_size: int,
         activation=leaky_relu,
         activation_derivative=leaky_relu_derivative,
         optimizer: Optimizer = AdamTaperoff,
         sub_network: BaseNetwork = BaseNetwork
     ) -> None:
-        assert encoder_layers[-1] == decoder_layers[0],\
-            "Initialized VAE with inconsistent latent space size"
-
         self.optimizer = optimizer()
         self.activation = activation
         self.activation_derivative = activation_derivative
 
-        self.encoder_layers = encoder_layers
-        self.decoder_layers = decoder_layers
+        self.latent_size = latent_size
 
-        # This is because the last layer of the decoder
-        # has to contain both the mean and the log variance
-        e_layers = list(encoder_layers)
-        e_layers[-1] *= 2
-
-        self.layers = encoder_layers[:-1] + decoder_layers
-
-        self.latent_size = self.decoder_layers[0]
-
-        self.encoder: BaseNetwork = sub_network(e_layers)
-        self.decoder: BaseNetwork = sub_network(decoder_layers)
+        self.encoder: BaseNetwork = sub_network(**encoder_args)
+        self.decoder: BaseNetwork = sub_network(**decoder_args)
 
         self.init_coefficients()
         self.beta = 1
@@ -69,11 +57,14 @@ class VAE(BaseNetwork):
     def get_time_seperated_data(self, input_data):
         return self.encoder.get_time_seperated_data(input_data)
 
-    def _encode(self, input, num_inputs):
+    def _encode(self, input, time_separated_inputs: bool):
+
+        num_inputs = len(input) if time_separated_inputs else 1
+
         encoder_values = self.encoder._feedforward(
             input,
-            num_inputs=num_inputs,
-            num_outputs=1
+            time_separated_inputs=time_separated_inputs,
+            iterations=num_inputs
         )
 
         # Get the output, then the last time step,
@@ -141,21 +132,28 @@ class VAE(BaseNetwork):
         data_point,
         print_epochs,
         time_separated_values: bool,
+        _feedforward_values=None,
         dL_dz=None
     ):
         reconstruction_loss = 0
         kl_loss = 0
 
-        num_inputs = len(data_point) if time_separated_values else 1
         mu, log_var, encoder_values = self._encode(
-            data_point, num_inputs=num_inputs
+            data_point[0],
+            time_separated_values
         )
 
         generated, epsilon = self._gen(mu, log_var)
 
+        decoder_input = np.empty((2,), dtype=np.ndarray)
+        decoder_input[0] = generated
+        decoder_input[1] = data_point[1]
+
         decoder_loss, dL_dz = self.decoder.backpropagate(
-            np.array([generated, data_point[1]], dtype=np.ndarray),
-            print_epochs
+            decoder_input,
+            print_epochs,
+            time_separated_input=False,
+            num_outputs=len(data_point[0])
         )
 
         dL_dz = self.gen_backprop(dL_dz, mu, log_var, epsilon)
@@ -167,7 +165,9 @@ class VAE(BaseNetwork):
             [data_point[0]],
             False,
             dL_dz=dL_dz,
-            _feedforward_values=encoder_values
+            _feedforward_values=encoder_values,
+            num_inputs=num_inputs,
+            num_outputs=1
         )
 
         return ({
