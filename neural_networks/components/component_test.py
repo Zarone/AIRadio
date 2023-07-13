@@ -87,6 +87,8 @@ def component_test(Tester):
             network.coefs[Coefficients.WEIGHTS][1].shape, (1, 3)))
 
         # Test for feedforward layer
+        network.coefs[Coefficients.WEIGHTS] = np.array((1,), dtype=np.ndarray)
+        network.coefs[Coefficients.BIASES] = np.array((1,), dtype=np.ndarray)
         network.coefs[Coefficients.WEIGHTS][0] = np.array([[1, 2], [3, 4]])
         network.coefs[Coefficients.BIASES][0] = np.array([1, -1])
         inputs = np.array([3, 2])
@@ -101,12 +103,13 @@ def component_test(Tester):
         # Test for feedforward full
         network.layers = (2, 2)
         inputs = np.array([3, 2])
-        expected_zs = [np.array([8, 16])]
-        expected_activations = [np.array([8, 16])]
+        expected_zs = [np.array([3, 2]), np.array([8, 16])]
+        expected_activations = [np.array([3, 2]), np.array([8, 16])]
+        true_output = network._feedforward(inputs)
         module.tester(
             "Network Feedforward 2",
             module.eq(
-                network._feedforward(np.array([inputs, inputs]))[FeedforwardData.OUTPUT][-1],
+                true_output[FeedforwardData.OUTPUT],
                 (expected_zs, expected_activations)
             )
         )
@@ -117,7 +120,7 @@ def component_test(Tester):
         module.tester(
             "Network Feedforward 3",
             module.eq(
-                network.feedforward(np.array([inputs, inputs])),
+                network.feedforward(inputs),
                 expected_output
             )
         )
@@ -129,7 +132,7 @@ def component_test(Tester):
         module.tester(
             "Network Loss",
             module.eq(
-                network.loss(np.array([y_true, y_true]), y_pred),
+                network.loss(y_true, y_pred),
                 {Loss.RECONSTRUCTION_LOSS: expected_loss}
             )
         )
@@ -141,6 +144,9 @@ def component_test(Tester):
                     [[3, 4], [6, 8]],
                     [[5, 6], [10, 12]]
                 ]
-            ), 1, 3,
-            print_epochs=False
+            ),
+            max_epochs=1,
+            batch_size=3,
+            print_epochs=False,
+            time_separated_input=False
         )

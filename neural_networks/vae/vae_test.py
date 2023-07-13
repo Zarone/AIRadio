@@ -7,7 +7,14 @@ from typing import Any
 
 def vae_test(Tester):
     with Tester("NN VAE Test") as module:
-        test_sounds = np.array(
+        test_sounds_5 = np.array(
+            [
+                [
+                    [1], [2], [3], [4], [5]
+                ]
+            ]
+        )
+        test_sounds_10 = np.array(
             [
                 [
                     [1], [2], [3], [4], [5], [6], [7], [8], [9], [10]
@@ -15,19 +22,20 @@ def vae_test(Tester):
             ]
         )
         network: VAE = VAE(
-            encoder_args=dict(layers=(5, 4, 3)),
+            encoder_args=dict(layers=(5, 4, 6)),
             decoder_args=dict(layers=(3, 4, 5)),
             sub_network=BaseNetwork,
             latent_size=3
         )
         network.train(
-            test_sounds,
+            test_sounds_5,
             batch_size=1,
             max_epochs=1,
             graph=False,
             print_epochs=False,
             learning_rate=0.01,
-            time_separated_input=False
+            time_separated_input=False,
+            time_separated_output=False
         )
 
         network: VAE = VAE(
@@ -47,11 +55,12 @@ def vae_test(Tester):
             sub_network=Recurrent
         )
         network.train(
-            network.get_time_seperated_data(test_sounds),
+            network.get_time_seperated_data(test_sounds_10),
             batch_size=1,
             max_epochs=1,
             graph=False,
             print_epochs=False,
             learning_rate=0.01,
-            time_separated_input=True
+            time_separated_input=True,
+            time_separated_output=True
         )

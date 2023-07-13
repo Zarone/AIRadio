@@ -41,6 +41,17 @@ class Tester:
         self.test_data.append((self.last_x, self.last_y))
 
     def eq(self, x, y, err: float = 0.001, init_call=True):
+        if (
+            isinstance(x, (float, int, np.integer, np.bool_)) and
+            isinstance(y, (np.ndarray, List, Tuple, dict))
+        ):
+            return False
+        if (
+            isinstance(y, (float, int, np.integer, np.bool_)) and
+            isinstance(x, (np.ndarray, List, Tuple, dict))
+        ):
+            return False
+
         if init_call:
             self.last_x = x
             self.last_y = y

@@ -40,3 +40,11 @@ def elu(x, alpha=1.0):
 
 def elu_derivative(x, alpha=1.0):
     return np.where(x >= 0, 1, alpha * np.exp(x))
+
+
+def tanh(x):
+    return np.tanh(x)
+
+
+def tanh_derivative(x):
+    return 1 - np.tanh(x) ** 2

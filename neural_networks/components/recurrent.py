@@ -26,6 +26,7 @@ class Recurrent(BaseNetwork):
         optimizer: Optimizer = AdamTaperoff
     ) -> None:
 
+        self.input_size = input_size
         assert input_layers[0] == input_size + state_layers[0],\
             "First input layers should be the sum of the state size " +\
             " and the input size"
@@ -293,3 +294,13 @@ represents a time step.
         return ({
             Loss.RECONSTRUCTION_LOSS: reconstruction_loss
         }, dL_dInput)
+
+    @staticmethod
+    def check_vae_compatibility(encoder, decoder):
+        assert encoder.output_layers[-1] == decoder.input_size * 2,\
+            "Expected final layer in encoder to be twice the" +\
+            " first layer in decoder"
+
+        assert encoder.input_size == decoder.output_layers[-1],\
+            "Expected the input size in encoder to be equal to" +\
+            " the final layer in the decoder"

@@ -40,17 +40,19 @@ class AutoEncoder(BaseNetwork):
         if test_data is not None:
             formatted_test_data = np.stack((test_data, test_data), axis=1)
         super().train(
-            training_data,
-            max_epochs,
-            batch_size,
-            formatted_test_data,
-            learning_rate,
-            graph,
-            print_epochs
+            _training_data=training_data,
+            max_epochs=max_epochs,
+            time_separated_input=False,
+            time_separated_output=False,
+            batch_size=batch_size,
+            test_data=formatted_test_data,
+            learning_rate=learning_rate,
+            graph=graph,
+            print_epochs=print_epochs
         )
 
     def feedforward(self, input):
-        return super().feedforward(np.array([input, input]))
+        return super().feedforward(input)
 
     def encode(self, input):
         activations: List = [None] * (self.latent_layer)

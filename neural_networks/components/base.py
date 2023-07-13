@@ -231,7 +231,8 @@ to testing.
         self,
         _training_data: np.ndarray,
         max_epochs: int,
-        time_seperated_input: bool,
+        time_separated_input: bool = False,
+        time_separated_output: bool = False,
         batch_size: int = 100,
         test_data: (np.ndarray | None) = None,
         learning_rate=0.05,
@@ -245,9 +246,13 @@ to testing.
 
         training_data = np.array(_training_data, copy=True)
 
+        pass
         per_epoch = len(training_data) // batch_size
 
         assert per_epoch != 0, "Batch Size greater than Data Set"
+
+        if num_inputs == -1 and time_separated_input:
+            num_inputs = len(training_data[0][0])
 
         for i in range(max_epochs):
             np.random.shuffle(training_data)
@@ -259,7 +264,8 @@ to testing.
                     batch,
                     learning_rate,
                     print_epochs,
-                    time_seperated_input=time_seperated_input,
+                    time_separated_input=time_separated_input,
+                    time_separated_output=time_separated_output,
                     num_inputs=num_inputs,
                     num_outputs=num_outputs
                 )
@@ -321,7 +327,8 @@ to testing.
         batch,
         learning_rate,
         print_epochs,
-        time_seperated_input,
+        time_separated_input,
+        time_separated_output,
         num_inputs,
         num_outputs
     ):
@@ -333,13 +340,24 @@ to testing.
             delta_loss, _ = self.backpropagate(
                 data_point,
                 print_epochs,
-                time_separated=time_seperated_input,
+                time_separated_input=time_separated_input,
+                time_separated_output=time_separated_output
             )
             for key, value in delta_loss.items():
                 losses.setdefault(key, 0)
                 losses[key] += value
 
-        self.update_coefficients(learning_rate, batch, losses)
+        # The more training iterations there are, the more
+        # the loss will be impacted by a small change, hence
+        # the greater the gradient will be. This negates that
+        # effect. Implicitely assumes constant number of inputs,
+        # which isn't necessarily true.
+        adjusted_learning_rate = learning_rate
+        if time_separated_input:
+            iterations = max(num_inputs, num_outputs)
+            adjusted_learning_rate /= iterations
+
+        self.update_coefficients(adjusted_learning_rate, batch, losses)
 
         return losses
 
@@ -352,6 +370,7 @@ to testing.
         weight_name,
         bias_name
     ):
+        pass
         assert len(z_values) == len(self.coefs[weight_name]) + 1
         assert len(z_values) == len(layers)
 
@@ -365,8 +384,7 @@ to testing.
             )
             self.coef_gradients[bias_name][i] += dL_dz
 
-            activation_derivative_func = self.activation_derivative\
-                if i != final_layer else linear_derivative
+            activation_derivative_func = self.activation_derivative
 
             dL_dz = np.matmul(
                 self.coefs[weight_name][i].T,
@@ -403,39 +421,6 @@ to testing.
                 data_point[1], activations[-1]
             )[Loss.RECONSTRUCTION_LOSS]
             reconstruction_loss += delta_reconstruction_loss
-
-        # len_z = len(z_values)
-
-        # decoder_gradients_z = np.array([None] * len_z)
-
-        # decoder_gradients_z[-1] = dL_daL
-
-        # last_index = len_z - 1
-
-        # for j in range(last_index, -1, -1):
-            # z_layer = z_values[j]
-            # if j != last_index:
-                # activation_derivative_func = self.activation_derivative
-                # decoder_gradients_z[j] = np.matmul(
-                    # self.coefs[Coefficients.WEIGHTS][j+1].transpose(),
-                    # decoder_gradients_z[j+1]
-                # ) * activation_derivative_func(z_layer)
-
-            # if j != 0:
-                # self.coef_gradients[Coefficients.WEIGHTS][j] += np.matmul(
-                    # decoder_gradients_z[j], activations[j-1].transpose())
-                # self.coef_gradients[Coefficients.BIASES][j] += \
-                    # decoder_gradients_z[j]
-
-        # self.coef_gradients[Coefficients.WEIGHTS][0] += np.matmul(
-            # decoder_gradients_z[0], data_point[0].transpose()
-        # )
-        # self.coef_gradients[Coefficients.BIASES][0] += decoder_gradients_z[0]
-
-        # output_dL_dz = np.matmul(
-            # self.coefs[Coefficients.WEIGHTS][0].T,
-            # decoder_gradients_z[0]
-        # )
 
         output_dL_dz = self.custom_backpropagate(
             self.layers,
