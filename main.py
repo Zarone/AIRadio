@@ -1,10 +1,11 @@
 import audio_parsing.audio_parsing as audio
 from neural_networks.components.base import BaseNetwork
-from neural_networks.vae.normal_vae.normal_vae import VAE
-from neural_networks.components.optimizer.adam import Adam
+from neural_networks.components.recurrent import Recurrent
+from neural_networks.vae.vae import VAE
+from neural_networks.components.optimizer.adam_w_taperoff import AdamTaperoff
 
 AMPLITUDE_SCALE = 1
-NUM_AMPLITUDES = 5
+NUM_AMPLITUDES = 15
 NUM_FILES = 5
 
 sounds, names = audio.get_raw_data(NUM_FILES, NUM_AMPLITUDES, AMPLITUDE_SCALE)
@@ -30,28 +31,54 @@ audio.plot_audio_comparison(song, decompressed)
 """
 
 """
-# network = BaseNetwork(
-    # layers=(5, 4, 3, 3, 3, 4, 5),
-    # optimizer=Adam(loss_taperoff=True)
-# )
-# formatted_sounds = network.format_unsupervised_input(sounds)
+network = BaseNetwork(
+    layers=(5, 4, 5),
+    optimizer=AdamTaperoff()
+)
 
-# network.train(
-    # formatted_sounds,
-    # batch_size=5,
-    # max_epochs=20000,
-    # graph=True,
-    # learning_rate=0.01
-# )
+formatted_sounds = network.format_unsupervised_input(sounds)
+
+network.train(
+    formatted_sounds,
+    batch_size=10,
+    max_epochs=10000,
+    graph=True,
+    learning_rate=0.01
+)
 """
 
-network: VAE = VAE(encoder_layers=(5, 4, 3, 3), decoder_layers=(3, 3, 4, 5))
+# network: VAE = VAE(
+    # encoder_args=dict(layers=(5, 4, 4, 6)),
+    # decoder_args=dict(layers=(3, 4, 4, 5)),
+    # sub_network=BaseNetwork,
+    # latent_size=3
+# )
+network: VAE = VAE(
+    encoder_args=dict(
+        input_size=5,
+        input_layers=(9, 4),
+        state_layers=(4, 4),
+        output_layers=(4, 6)
+    ),
+    decoder_args=dict(
+        input_size=3,
+        input_layers=(7, 4),
+        state_layers=(4, 4),
+        output_layers=(4, 5)
+    ),
+    latent_size=3,
+    sub_network=Recurrent
+)
+time_separated_sounds = network.get_time_seperated_data(sounds)
 network.train(
-    sounds,
+    time_separated_sounds,
+    # sounds,
     batch_size=5,
     max_epochs=20000,
     graph=True,
-    learning_rate=0.01
+    learning_rate=0.001,
+    time_separated_input=True,
+    time_separated_output=True
 )
 
 

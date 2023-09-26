@@ -15,7 +15,7 @@ class AutoEncoder(BaseNetwork):
         layers: Tuple[int, ...],
         activation=leaky_relu,
         activation_derivative=leaky_relu_derivative,
-        optimizer: Optimizer = Adam()
+        optimizer: Optimizer = Adam
     ):
         self.latent_layer = len(layers)//2
         super().__init__(
@@ -40,17 +40,19 @@ class AutoEncoder(BaseNetwork):
         if test_data is not None:
             formatted_test_data = np.stack((test_data, test_data), axis=1)
         super().train(
-            training_data,
-            max_epochs,
-            batch_size,
-            formatted_test_data,
-            learning_rate,
-            graph,
-            print_epochs
+            _training_data=training_data,
+            max_epochs=max_epochs,
+            time_separated_input=False,
+            time_separated_output=False,
+            batch_size=batch_size,
+            test_data=formatted_test_data,
+            learning_rate=learning_rate,
+            graph=graph,
+            print_epochs=print_epochs
         )
 
     def feedforward(self, input):
-        return super().feedforward(np.array([input, input]))
+        return super().feedforward(input)
 
     def encode(self, input):
         activations: List = [None] * (self.latent_layer)
@@ -70,8 +72,8 @@ class AutoEncoder(BaseNetwork):
 
         last_activations = latent_space
         for i in range(self.latent_layer, num_layers):
-            zs[i-self.latent_layer], activations[i -
-                                                 self.latent_layer] = self.feedforward_layer(i, last_activations)
+            zs[i-self.latent_layer], activations[i - self.latent_layer] = \
+                self.feedforward_layer(i, last_activations)
             last_activations = activations[i-self.latent_layer]
 
         return (zs, activations)

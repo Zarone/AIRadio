@@ -41,6 +41,17 @@ class Tester:
         self.test_data.append((self.last_x, self.last_y))
 
     def eq(self, x, y, err: float = 0.001, init_call=True):
+        if (
+            isinstance(x, (float, int, np.integer, np.bool_)) and
+            isinstance(y, (np.ndarray, List, Tuple, dict))
+        ):
+            return False
+        if (
+            isinstance(y, (float, int, np.integer, np.bool_)) and
+            isinstance(x, (np.ndarray, List, Tuple, dict))
+        ):
+            return False
+
         if init_call:
             self.last_x = x
             self.last_y = y
@@ -48,6 +59,8 @@ class Tester:
             return self.num_equal(x, y, err)
         elif isinstance(x, (np.ndarray, List, Tuple)):
             return self.arr_equal(x, y, err)
+        elif isinstance(x, dict):
+            return self.dict_equal(x, y, err)
         else:
             raise Exception(f"Unrecognized Type: {type(x)}")
 
@@ -60,6 +73,19 @@ class Tester:
         if not abs(x-y) < err:
             print(f"Expected {y}, got {x}")
         return abs(x-y) < err
+
+    def dict_equal(
+        self,
+        x,
+        y,
+        err
+    ):
+        if len(x) != len(y):
+            return False
+        for key, val in x.items():
+            if key not in y or not self.eq(x[key], y[key], err, False):
+                return False
+        return True
 
     def arr_equal(
         self,

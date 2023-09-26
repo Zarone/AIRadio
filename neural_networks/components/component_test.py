@@ -1,15 +1,19 @@
-from neural_networks.components.activations import\
-    relu,\
-    relu_derivative,\
-    leaky_relu,\
-    leaky_relu_derivative,\
-    elu,\
-    elu_derivative,\
-    sigmoid,\
-    sigmoid_derivative,\
-    linear,\
+from neural_networks.components.activations import (
+    relu,
+    relu_derivative,
+    leaky_relu,
+    leaky_relu_derivative,
+    elu,
+    elu_derivative,
+    sigmoid,
+    sigmoid_derivative,
+    linear,
     linear_derivative
+)
 from neural_networks.components.base import BaseNetwork
+from neural_networks.components.loss_types import Loss
+from neural_networks.components.coefs import Coefficients
+from neural_networks.components.feedforward_data import FeedforwardData
 import numpy as np
 
 
@@ -71,20 +75,22 @@ def component_test(Tester):
 
         # Test for linear layer initialization
         network = BaseNetwork(layers=(2, 3, 1))
-        module.tester("Parameter Shape 1", module.eq(network.biases.shape, (2,)))
-        module.tester("Parameter Shape 2", module.eq(network.weights.shape, (2,)))
+        module.tester("Parameter Shape 1", module.eq(network.coefs[Coefficients.BIASES].shape, (2,)))
+        module.tester("Parameter Shape 2", module.eq(network.coefs[Coefficients.WEIGHTS].shape, (2,)))
         module.tester("Parameter Shape 3", module.eq(
-            network.biases[0].shape, (3, 1)))
+            network.coefs[Coefficients.BIASES][0].shape, (3, 1)))
         module.tester("Parameter Shape 4", module.eq(
-            network.weights[0].shape, (3, 2)))
+            network.coefs[Coefficients.WEIGHTS][0].shape, (3, 2)))
         module.tester("Parameter Shape 5", module.eq(
-            network.biases[1].shape, (1, 1)))
+            network.coefs[Coefficients.BIASES][1].shape, (1, 1)))
         module.tester("Parameter Shape 6", module.eq(
-            network.weights[1].shape, (1, 3)))
+            network.coefs[Coefficients.WEIGHTS][1].shape, (1, 3)))
 
         # Test for feedforward layer
-        network.weights[0] = np.array([[1, 2], [3, 4]])
-        network.biases[0] = np.array([1, -1])
+        network.coefs[Coefficients.WEIGHTS] = np.array((1,), dtype=np.ndarray)
+        network.coefs[Coefficients.BIASES] = np.array((1,), dtype=np.ndarray)
+        network.coefs[Coefficients.WEIGHTS][0] = np.array([[1, 2], [3, 4]])
+        network.coefs[Coefficients.BIASES][0] = np.array([1, -1])
         inputs = np.array([3, 2])
         expected_z = np.array([8, 16])
         expected_activation = np.array([8, 16])
@@ -97,12 +103,13 @@ def component_test(Tester):
         # Test for feedforward full
         network.layers = (2, 2)
         inputs = np.array([3, 2])
-        expected_zs = [np.array([8, 16])]
-        expected_activations = [np.array([8, 16])]
+        expected_zs = [np.array([3, 2]), np.array([8, 16])]
+        expected_activations = [np.array([3, 2]), np.array([8, 16])]
+        true_output = network._feedforward(inputs)
         module.tester(
             "Network Feedforward 2",
             module.eq(
-                network._feedforward(np.array([inputs, inputs])),
+                true_output[FeedforwardData.OUTPUT],
                 (expected_zs, expected_activations)
             )
         )
@@ -113,7 +120,7 @@ def component_test(Tester):
         module.tester(
             "Network Feedforward 3",
             module.eq(
-                network.feedforward(np.array([inputs, inputs])),
+                network.feedforward(inputs),
                 expected_output
             )
         )
@@ -125,8 +132,8 @@ def component_test(Tester):
         module.tester(
             "Network Loss",
             module.eq(
-                network.loss(np.array([y_true, y_true]), y_pred),
-                (expected_loss,)
+                network.loss(y_true, y_pred),
+                {Loss.RECONSTRUCTION_LOSS: expected_loss}
             )
         )
 
@@ -137,6 +144,9 @@ def component_test(Tester):
                     [[3, 4], [6, 8]],
                     [[5, 6], [10, 12]]
                 ]
-            ), 1, 3,
-            print_epochs=False
+            ),
+            max_epochs=1,
+            batch_size=3,
+            print_epochs=False,
+            time_separated_input=False
         )
