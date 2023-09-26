@@ -45,13 +45,11 @@ def vae_test(Tester):
             encoder_args=dict(
                 input_size=5,
                 input_layers=(9, 4),
-                state_layers=(4, 4),
                 output_layers=(4, 6)
             ),
             decoder_args=dict(
                 input_size=3,
                 input_layers=(7, 4),
-                state_layers=(4, 4),
                 output_layers=(4, 5)
             ),
             latent_size=3,
