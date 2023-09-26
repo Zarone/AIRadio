@@ -3,10 +3,6 @@ import numpy as np
 
 
 class AdamTaperoff(Optimizer):
-    EPSILON_NAUGHT = 1E-15
-    SQRT = np.vectorize(
-        lambda x: np.sqrt(x), otypes=[np.ndarray])
-
     def __init__(
         self,
         Beta1: float = 0.95,

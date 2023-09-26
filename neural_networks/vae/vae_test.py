@@ -14,6 +14,7 @@ def vae_test(Tester):
                 ]
             ]
         )
+
         test_sounds_10 = np.array(
             [
                 [
@@ -21,12 +22,14 @@ def vae_test(Tester):
                 ]
             ]
         )
+
         network: VAE = VAE(
             encoder_args=dict(layers=(5, 4, 6)),
             decoder_args=dict(layers=(3, 4, 5)),
             sub_network=BaseNetwork,
             latent_size=3
         )
+
         network.train(
             test_sounds_5,
             batch_size=1,
@@ -54,6 +57,7 @@ def vae_test(Tester):
             latent_size=3,
             sub_network=Recurrent
         )
+
         network.train(
             network.get_time_seperated_data(test_sounds_10),
             batch_size=1,

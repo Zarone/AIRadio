@@ -18,13 +18,6 @@ import math
 
 class BaseNetwork:
 
-    """
-    :param layers This defines the number of nodes in each \
-  activation layer (including input space and latent space)
-    :param activation This is the primary activation function \
-  which the neural network uses
-    """
-
     def __init__(
         self,
         layers: Tuple[int, ...],
@@ -32,6 +25,12 @@ class BaseNetwork:
         activation_derivative=leaky_relu_derivative,
         optimizer: Optimizer = AdamTaperoff
     ) -> None:
+        """
+        :param layers This defines the number of nodes in each \
+activation layer (including input space and latent space)
+        :param activation This is the primary activation function \
+which the neural network uses
+        """
         self.optimizer = optimizer()
         self.activation = activation
         self.activation_derivative = activation_derivative
@@ -93,7 +92,7 @@ network according to the layers in the network.
 and activations of the network after a feedforward. The output does \
 not trigger the activation function.
 
-        :param input_val should be a numpy array where the first element is \
+        :param input_val Should be a numpy array where the first element is \
 the input, and the second element is the true output.
         """
 
@@ -115,7 +114,7 @@ the input, and the second element is the true output.
 
         return (zs, activations)
 
-    # I pass in args here just to prevent an error
+    # I pass in **_ here just to prevent an error
     # in _feedforward overrides in inherited classes.
     def _feedforward(self, input_val: np.ndarray, **_) -> Tuple[List, List]:
         """This functions takes an input and returns the z values \
@@ -126,7 +125,7 @@ element is an activation value to the first neural network \
 layer.
         """
 
-        assert input_val.shape[0] == self.layers[0],\
+        assert input_val.shape[0] == self.layers[0], \
             f"input_val of unexpected input size {input_val.shape}" + \
             f" when ({self.layers[0]}, 1) was expected"
 
@@ -185,6 +184,7 @@ layer.
 
     @staticmethod
     def graph_loss(losses: dict, test_losses={}):
+        """Graphs the losses over time using matplotlib"""
         sub = plt.subplots(2 if not len(test_losses) == 0 else 1, sharex=True)
 
         axs: Any = sub[1]
@@ -453,10 +453,10 @@ to testing.
 
     @staticmethod
     def check_vae_compatibility(encoder, decoder):
-        assert encoder.layers[-1] == decoder.layers[0] * 2,\
+        assert encoder.layers[-1] == decoder.layers[0] * 2, \
             "Expected final layer in encoder to be twice the" +\
             " first layer in decoder"
 
-        assert encoder.layers[0] == decoder.layers[-1],\
+        assert encoder.layers[0] == decoder.layers[-1], \
             "Expected the first layer in encoder to be equal to" +\
             " the final layer in the decoder"

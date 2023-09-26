@@ -10,12 +10,16 @@ COMPRESSION_1_INFO = {
     }
 
 def train_compressor(sounds: List, details: Dict, training_data_count: int):
-  N = len(sounds)
+    N = len(sounds)
 
-  array_indices = np.random.randint(0, N, training_data_count)  # Randomly select N array indices
-  start_indices = [np.random.randint(0, len(sounds[index]) - details["previous_chunk_size"]) for index in array_indices]
+    # Randomly select N array indices
+    array_indices = np.random.randint(0, N, training_data_count)
 
-  sequences = [ \
+    start_indices = [
+        np.random.randint(0, len(sounds[index]) - details["previous_chunk_size"]) for index in array_indices
+    ]
+
+    sequences = [
       sounds[ array_indices[i] ][ start_indices[i]: start_indices[i]+details["previous_chunk_size"] ] for i in range(training_data_count) \
       ]
 

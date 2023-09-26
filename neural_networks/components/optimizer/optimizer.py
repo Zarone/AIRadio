@@ -14,7 +14,9 @@ class Optimizer:
     @abstractmethod
     def adjusted_gradient(self, vector_id, gradient, *args):
         """
-        :param v_id a unique identifier for that particular type of gradient vector.
-Ex: 0 to represent biases, 1 to represent weights
+        :param v_id a unique identifier for that particular type of gradient
+        vector.
+
+        Ex: 0 to represent biases, 1 to represent weights
         """
         pass
