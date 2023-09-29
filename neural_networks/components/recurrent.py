@@ -20,16 +20,12 @@ class Recurrent(BaseNetwork):
         input_size: int,
         input_layers: Tuple[int, ...],
         output_layers: Tuple[int, ...],
-        state_layers: Tuple[int, ...],
         activation=leaky_relu,
         activation_derivative=leaky_relu_derivative,
         optimizer: Optimizer = AdamTaperoff
     ) -> None:
 
         self.input_size = input_size
-        assert input_layers[0] == input_size + state_layers[0],\
-            "First input layers should be the sum of the state size " +\
-            " and the input size"
 
         self.optimizer = optimizer()
         self.activation = activation
@@ -37,7 +33,6 @@ class Recurrent(BaseNetwork):
 
         self.input_layers = input_layers
         self.output_layers = output_layers
-        self.state_layers = state_layers
 
         self.coefs = {}
         self.init_coefficients()
@@ -90,17 +85,12 @@ network according to the layers in the network.
             Coefficients.OUTPUT_WEIGHTS,
             Coefficients.OUTPUT_BIASES
         )
-        self.init_coefficients_from_layer(
-            self.state_layers,
-            Coefficients.STATE_WEIGHTS,
-            Coefficients.STATE_BIASES
-        )
 
     def get_time_seperated_data(self, input_data):
         """This function divides the input data into evenly sized vectors\
     with one for each time step.
         """
-        input_layer_size = self.input_layers[0] - self.state_layers[-1]
+        input_layer_size = self.input_layers[0] - self.output_layers[0]
         input_data_size = input_data[0].shape[0]
 
         assert input_data_size % input_layer_size == 0,\
@@ -154,14 +144,8 @@ represents a time step.
             input_z_values, input_activations = input_processing_data[i]
             raw_state = input_activations[-1]
 
-            hidden_state_processing_data[i] = self._custom_feedforward(
-                raw_state,
-                self.state_layers,
-                Coefficients.STATE_WEIGHTS,
-                Coefficients.STATE_BIASES
-            )
-            hidden_state_z_values, hidden_state_activations = \
-                hidden_state_processing_data[i]
+            hidden_state_processing_data[i] = raw_state
+            hidden_state_activations = [hidden_state_processing_data[i]]
             hidden_state = hidden_state_activations[-1]
 
             output_processing_data[i] = self._custom_feedforward(
@@ -232,7 +216,7 @@ represents a time step.
         )
 
         dL_dInput = np.zeros(
-            (self.input_layers[0]-self.state_layers[0], 1),
+            (self.input_layers[0]-self.input_layers[-1], 1),
             dtype=np.float32
         )
 
@@ -262,17 +246,8 @@ represents a time step.
                 Coefficients.INPUT_BIASES
             )
 
-            dL_dInput += dL_dz[self.state_layers[-1]:]
-            dL_dz = dL_dz[0:self.state_layers[-1]]
-
-            dL_dz = self.custom_backpropagate(
-                self.state_layers,
-                dL_dz,
-                hidden_state_processing_data[i][0],
-                hidden_state_processing_data[i][1],
-                Coefficients.STATE_WEIGHTS,
-                Coefficients.STATE_BIASES
-            )
+            dL_dInput += dL_dz[self.output_layers[0]:]
+            dL_dz = dL_dz[0:self.output_layers[0]]
 
             # This indicates that this network is many to many
             # which means that another output must be factored

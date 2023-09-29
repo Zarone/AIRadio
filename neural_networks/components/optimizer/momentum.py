@@ -1,9 +1,8 @@
 from neural_networks.components.optimizer.optimizer import Optimizer
 import numpy as np
 
+
 class Momentum(Optimizer):
-
-
     def __init__(
         self,
         Beta: float = 0.95,
